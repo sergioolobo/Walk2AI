@@ -4,66 +4,75 @@ Each phase ends with working software, passing tests and updated documentation. 
 does not start until the previous one is accepted. Items needing something from you are
 marked **(you)**.
 
-## Phase 0 — Architecture and repository preparation
+## Phase 0 — Architecture and repository preparation — done
 
 - [x] Inspect the development environment and toolchain
-- [x] Inspect existing project files
 - [x] Evaluate the proposed technology stack
 - [x] Research the Xiaomi Watch S3 → Mi Fitness → Apple Health pipeline
-- [x] Design the architecture ([ARCHITECTURE.md](ARCHITECTURE.md))
-- [x] Design the database and validate it on PostgreSQL 16 ([DATABASE.md](DATABASE.md))
-- [x] Define the API contract ([API.md](API.md))
-- [x] Define security and privacy controls ([SECURITY.md](SECURITY.md))
-- [x] Define development conventions ([DEVELOPMENT.md](DEVELOPMENT.md))
-- [x] Create the repository skeleton and environment configuration
-- [x] Record decisions and deviations ([DECISIONS.md](DECISIONS.md))
-- [ ] **(you)** Approve the architecture and the decisions marked *needs approval*
-- [ ] **(you)** Run the device check ([FITNESS_INTEGRATION.md](FITNESS_INTEGRATION.md#3-device-check-please-run-this-first))
+- [x] Architecture, database design, API contract, security and development documents
+- [x] Repository skeleton and environment configuration
+- [x] **(you)** Architecture approved (2026-11-13)
+- [x] **(you)** Device check: workouts do reach Apple Health
 
-## Phase 1 — Backend foundation
+## Phase 1 — Backend foundation — done, awaiting your review
 
-Goal: a running, tested API with authentication and the full schema.
+- [x] Backend project: `pyproject.toml`, uv lockfile, Ruff, mypy, pytest
+- [x] Typed settings with startup validation (stricter in production)
+- [x] Async database session management
+- [x] SQLAlchemy models for all 21 tables
+- [x] Alembic: initial migration with constraints, triggers, extensions; tested up, down and up again
+- [x] Seed command (reward rules, workout type rules, EUR→WC rate)
+- [x] Authentication: register, login, refresh, logout, profile, password change
+- [x] Argon2id passwords; rotating refresh tokens with theft detection
+- [x] Roles and the admin dependency; registration modes
+- [x] Device pairing and scoped device tokens
+- [x] Error handling (problem+json), request ids, structured logging
+- [x] Rate limiting; audit log
+- [x] Health and readiness endpoints
+- [x] Europe/Lisbon day and month boundaries, daylight saving included
+- [x] Backend Dockerfile; `docker compose up` runs database, migrations and API
+- [x] Test foundation: real-PostgreSQL fixtures, controllable clock, API client
+- [x] CI workflow: lint, types, tests, image build
 
-- [ ] Backend project: `pyproject.toml`, uv lockfile, Ruff, mypy, pytest
-- [ ] Typed settings with startup validation
-- [ ] Async database session management
-- [ ] SQLAlchemy models for all tables
-- [ ] Alembic: initial migration including constraints, triggers, extensions
-- [ ] Seed command (reward rules, workout type rules, EUR→WC rate)
-- [ ] Authentication: register, login, refresh, logout, me; Argon2id; cookie sessions
-- [ ] Roles and the admin dependency; registration modes
-- [ ] Device pairing and scoped device tokens
-- [ ] Error handling (problem+json), request ids, structured logging
-- [ ] Rate limiting; audit log writer
-- [ ] Health and readiness endpoints
-- [ ] Backend Dockerfile; `docker compose up` runs database + API
-- [ ] Test foundation: real-PostgreSQL fixtures, API client, factories
-- [ ] CI workflow: lint, types, tests
+Brought forward from Phase 2 at your request:
 
-Accepted when: a fresh clone reaches a healthy API with `docker compose up`; a user can
-register, log in and call `/auth/me`; migrations apply and roll back; tests pass in CI.
+- [x] `WalletService`: reward, reverse, reserve, settle, release, expire, adjust
+- [x] Immutable ledger with idempotency keys
+- [x] Reservation expiry task
+- [x] Reconciliation (balances = ledger sums), as endpoint and CLI
+- [x] Wallet read endpoints; audited admin adjustments
+- [x] Concurrency and financial-integrity tests
 
-## Phase 2 — Wallet and reward engine
+Result: 299 automated tests passing; the stack was also started with Docker Compose and
+exercised end to end over HTTP.
+
+## Phase 2 — Fitness ingestion and reward engine — next
 
 Goal: activity turns into credits, correctly and exactly once.
 
-- [ ] `WalletService`: reward, reserve, settle, release, adjust — row-locked, ledgered
-- [ ] Reservation expiry task
-- [ ] Reconciliation check (balances = ledger sums)
-- [ ] Fitness ingestion: validation, upserts, batch idempotency
-- [ ] Workout de-duplication, overlap handling, midnight splitting, exclusion
-- [ ] `RewardEngine`: rule lookup by date, calculation, per-day ledger, delta payout
+- [ ] Sync payload schemas and server-side validation (plausibility bounds, dates, types)
+- [ ] `POST /fitness/sync`: batch idempotency, upsert of days and workouts
+- [ ] A source-agnostic ingestion interface, with Apple HealthKit as the first source
+      and a clearly-labelled test source (so Strava or others can be added later)
+- [ ] Workout handling: cross-source duplicates, overlaps, midnight splitting in the
+      user's timezone, deletion, manual exclusion
+- [ ] `RewardEngine`: rule lookup by activity date, `min(cap, floor(0.1·S) + floor(5·M))`,
+      per-day reward ledger, delta payout through `WalletService`
+- [ ] Walking and running paid through steps only; other workouts earn minutes
+- [ ] Late-arrival window; high-water mark; `REWARD_REVERSAL` on explicit exclusion
 - [ ] Spending limits and the checks applied at reservation time
+- [ ] Endpoints: `/fitness/*`, `/wallet/limits`, `/admin/reward-rules`
 - [ ] Controlled test fitness data, labelled end to end, disabled in production
-- [ ] Endpoints: `/fitness/*`, `/wallet/*`, `/admin/reward-rules`, adjustments
-- [ ] Tests: aggregation, duplicates, overlaps, missing and late data, rule changes,
-      cap, idempotence, concurrency, insufficient balance, ledger consistency
+- [ ] Tests: aggregation, duplicate steps and workouts, overlaps, missing and late data,
+      rule changes, cap, non-eligible activities, replayed and concurrent syncs,
+      Lisbon day boundaries on daylight-saving days
 
-Accepted when: the specification's examples produce the specified numbers; replaying any
-sync changes nothing; concurrent spending can never overdraw; all required fitness,
-reward and wallet tests pass.
+Accepted when: the specification's examples produce the specified numbers; replaying or
+racing any sync changes nothing; a rule change never alters a past day; all required
+fitness and reward tests pass.
 
-Depends on: the device check result for the final workout-eligibility rules.
+Needs from you: nothing to start. The workout type names from your watch
+([DECISIONS.md](DECISIONS.md#open-questions-for-you)) refine the classification.
 
 ## Phase 3 — AI gateway
 
@@ -76,7 +85,7 @@ Goal: both providers behind one interface, every request reserved, costed and re
 - [ ] Usage normalisation across providers
 - [ ] Pricing engine: versioned prices, cache categories, long-prompt tier, FX
 - [ ] Cost estimation (provider token counting where offered)
-- [ ] Gateway: estimate → reserve → call → settle / release
+- [ ] Gateway: estimate → reserve → call → settle / release (on the Phase 1 wallet)
 - [ ] Streaming over Server-Sent Events; cancellation on client disconnect
 - [ ] Timeouts, provider errors, refusals, partial streams
 - [ ] Chat sessions and messages; history window
@@ -94,7 +103,7 @@ the wallet consistent; no automated test makes a real API call.
 
 Goal: the product, in a browser, on real data.
 
-- [ ] Next.js project, Tailwind, shadcn/ui, generated API types
+- [ ] Next.js project, Tailwind, shadcn/ui, API types generated from the OpenAPI schema
 - [ ] Authenticated shell, navigation, responsive layout, light and dark themes
 - [ ] Login and first-run registration
 - [ ] Dashboard
@@ -112,19 +121,37 @@ Goal: the product, in a browser, on real data.
 Accepted when: every figure on every screen comes from the backend; the main flows pass
 in Playwright; the layout works on phone, tablet and desktop.
 
+## Before Phase 5 — feasibility investigation
+
+You have no Mac and have asked for no Apple purchases. Before any Phase 5 work, I will
+investigate and report on:
+
+- [ ] Whether the HealthKit entitlement and HealthKit background delivery can be signed
+      with a free Apple account, and what the 7-day expiry means in daily use
+- [ ] What can be built and tested without owning a Mac: hosted macOS build services and
+      CI runners, what each costs, and whether any can install onto your iPhone
+- [ ] What cannot be tested without the physical phone in any case
+- [ ] Alternatives to a native companion that still use official interfaces only
+      (for example an Apple Shortcuts automation posting Health data, or Strava as a
+      second source) and what each would lose
+- [ ] A recommendation with costs, for your decision
+
+No hardware is bought, no programme is joined and no paid service is used as part of
+this investigation.
+
 ## Phase 5 — iOS and HealthKit
 
-Goal: activity reaches the backend without you thinking about it.
+Goal: activity reaches the backend without you thinking about it. Scope and approach
+depend on the investigation above.
 
-- [ ] **(you)** Mac with Xcode; Apple Developer Program enrolment
+- [ ] **(you decide)** Build route chosen from the investigation
 - [ ] Xcode project, HealthKit capability, background delivery entitlement
 - [ ] Permission flow; clear explanation of what is read and why
 - [ ] Daily statistics queries; anchored workout query; hand-entered data excluded
-- [ ] Pairing with the backend; Keychain storage
+- [ ] Pairing with the backend (Phase 1 pairing endpoints); Keychain storage
 - [ ] Sync engine: rolling window, batch ids, retry, anchors
 - [ ] Background delivery and background refresh
 - [ ] Status screen: last sync, today's totals, credits earned, errors
-- [ ] Handling of missing data, inferred permission loss, offline
 - [ ] Unit tests with a fake HealthKit store
 - [ ] **(you)** On-device validation with the Watch S3 over several days
 
@@ -136,7 +163,7 @@ companion; nothing is rewarded twice over a week of real use.
 Goal: your own instance, on the internet, safely.
 
 - [ ] **(you approve)** DigitalOcean droplet and domain (recurring cost)
-- [ ] Production compose: reverse proxy, frontend, backend, database
+- [ ] Production compose: Caddy, frontend, backend, database
 - [ ] HTTPS with automatic certificates; security headers
 - [ ] Separate migration and runtime database roles
 - [ ] Migrations as a release step
@@ -146,7 +173,6 @@ Goal: your own instance, on the internet, safely.
 - [ ] Firewall, SSH hardening, automatic security updates
 - [ ] Deployment and rollback runbook
 - [ ] Security checklist from [SECURITY.md](SECURITY.md#before-going-public-phase-6-checklist)
-- [ ] Point the iOS companion at the production backend
 
 Accepted when: the platform runs at your domain over HTTPS, a backup has been restored
 successfully, and the security checklist is complete.
@@ -155,12 +181,10 @@ successfully, and the security checklist is complete.
 
 | Needed | Phase | Cost |
 |---|---|---|
-| Decisions on the open questions in [DECISIONS.md](DECISIONS.md#open-questions-for-you) | 0 | — |
-| Device check results | before 2 | — |
+| Workout type names from Apple Health (optional refinement) | 2 | — |
 | OpenAI API account, prepaid credit, API key | 3 | Prepaid amount of your choice |
 | Anthropic API account, prepaid credit, API key | 3 | Prepaid amount of your choice |
-| Mac with Xcode | 5 | — |
-| Apple Developer Program | 5 | US$99 per year |
+| A decision on the iOS build route | before 5 | Depends on the route; presented first |
 | DigitalOcean account and droplet | 6 | Monthly, small droplet tier (confirmed with you before creation) |
 | Domain name | 6 | Yearly |
 

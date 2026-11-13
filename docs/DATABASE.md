@@ -1,9 +1,10 @@
 # Walk2AI — Database Design
 
-> Status: **Phase 0 design, awaiting approval.** The executable reference is
-> [`database/schema.sql`](database/schema.sql). It was applied to PostgreSQL 16 and
-> exercised with invariant tests on 2026-11-13 (see [Validation](#validation)). From
-> Phase 1 the source of truth becomes the SQLAlchemy models and Alembic migrations.
+> Status: **Implemented in Phase 1.** The schema is created by the Alembic migration
+> `backend/migrations/versions/0001_initial_schema.py`, which is the source of truth.
+> [`database/schema.sql`](database/schema.sql) is generated from a migrated database for
+> reading (`make schema-doc`). The guarantees below are covered by automated tests
+> (see [Validation](#validation)).
 
 ## Principles
 
@@ -25,6 +26,7 @@ erDiagram
     users ||--|| wallet_accounts : has
     users ||--o{ auth_sessions : "browser sessions"
     users ||--o{ device_tokens : "paired phones"
+    users ||--o{ device_pairing_codes : "one-time codes"
     users ||--o{ fitness_sync_batches : uploads
     users ||--o{ fitness_daily : "daily totals"
     users ||--o{ workout_events : workouts
@@ -54,16 +56,18 @@ Standalone log: `audit_log`.
 
 ## Tables
 
-Twenty tables. Twelve are the ones named in the specification; eight are additions, each
-justified below.
+Twenty-one tables. Twelve are the ones named in the specification; nine are additions,
+each justified below. Tables for fitness, rewards and AI exist now but are only written
+to from Phases 2 and 3.
 
 ### Identity and access
 
 | Table | Purpose | Notes |
 |---|---|---|
 | `users` | Accounts | Spec columns plus `password_hash` (Argon2id), `role`, `timezone` (defines the user's "day"), `display_name`, `updated_at`. E-mail is `CITEXT` and unique. |
-| `auth_sessions` *(added)* | Browser refresh tokens | Only a SHA-256 hash is stored. Rotation chain via `rotated_from` enables reuse detection. |
+| `auth_sessions` *(added)* | Browser refresh tokens | Only a SHA-256 hash is stored. Tokens from one login share a `family_id`; rotation links via `rotated_from`; `revoked_reason` distinguishes rotation, logout, password change and detected reuse. |
 | `device_tokens` *(added)* | iOS companion credentials | Hashed, revocable, scoped (`fitness:sync`). Supports "disconnect fitness integration". |
+| `device_pairing_codes` *(added)* | One-time codes that a new device exchanges for a token | Stored as an HMAC keyed with the server secret; short-lived; single-use. |
 
 ### Fitness
 
@@ -100,7 +104,7 @@ hard-coded in the engine):
 |---|---|---|
 | `wallet_accounts` | Balances | Spec columns. `CHECK (available_balance >= 0)`, `CHECK (reserved_balance >= 0)`. |
 | `wallet_transactions` | Immutable ledger | Spec columns plus `reserved_delta`, `reserved_after`, `reference_type`, `idempotency_key`, `metadata`. `BIGINT` identity key gives a strict order. A `CHECK` enforces the shape of each transaction type. |
-| `wallet_reservations` | Holds for in-flight AI requests | Spec columns plus `settled_amount`, `released_amount`, `closed_at`. `request_id` is unique. |
+| `wallet_reservations` | Holds for in-flight AI requests | Spec columns plus `settled_amount`, `released_amount`, `description`, `closed_at`. `request_id` is unique. |
 | `spending_limits` *(added)* | Per-user spending controls | Per-request, daily and monthly maxima, minimum balance, alert threshold. |
 
 Transaction shapes enforced by `ck_wallet_tx_shape`:
@@ -133,7 +137,16 @@ record is not.
 
 | Table | Purpose |
 |---|---|
-| `audit_log` *(added)* | Append-only record of logins, admin changes, rule and price edits, wallet adjustments, device pairing and data deletion. Never contains secrets or message content. |
+| `audit_log` *(added)* | Append-only record of logins, admin changes, rule and price edits, wallet adjustments, device pairing and data deletion. Never contains secrets or message content. A trigger rejects every change except one: detaching the actor when a user row is deleted. |
+
+### Deletion rules
+
+| Deleting… | Effect |
+|---|---|
+| A user with wallet history | Refused (`RESTRICT`). Accounts are suspended, not erased. |
+| An admin who authored an adjustment | Refused: the ledger row naming them cannot be rewritten. |
+| A user without wallet history | Sessions, devices and fitness data cascade; audit rows remain with the actor detached. |
+| A conversation | Messages go; usage records stay with `session_id` set to `NULL`. |
 
 ## Invariants and where they are enforced
 
@@ -181,31 +194,37 @@ planned until measurements show a need.
 
 ## Migrations
 
-- Alembic, one linear history, generated from the models and reviewed by hand.
-- Constraints, triggers and extensions are written explicitly in migrations
-  (autogenerate does not detect `EXCLUDE` constraints or triggers).
-- Every migration has a tested downgrade in development; production only moves forward.
+- Alembic, one linear history. **The migrations are the schema**: they are hand-written
+  SQL, because the parts that matter most here (`CHECK` and `EXCLUDE` constraints,
+  triggers) are the parts autogeneration does not understand.
+- The SQLAlchemy models are the *mapping* onto that schema. A test compares the two and
+  fails on any difference in tables, columns, types, keys, unique constraints or indexes.
+- Every constraint and index has an explicit, stable name (`ck_…`, `uq_…`, `ix_…`,
+  `fk_…`, `ex_…`), so errors, tests and later migrations can refer to them.
+- The downgrade is tested: upgrade → downgrade → upgrade on an empty database.
+  Production only moves forward.
+- Tests always build their database by running the migrations, never `create_all()`.
 - Seed data (reward rules, workout type rules, the EUR→WC rate) is applied by an explicit,
-  idempotent seed command — not buried in migrations.
+  idempotent command (`python -m app.cli seed`) that never overwrites existing values.
 
 ## Validation
 
-Performed on 2026-11-13 against PostgreSQL 16.15 (local cluster) and PostgreSQL 16.16
-(`postgres:16-alpine` via `docker compose`):
+Every guarantee on this page is exercised by the automated test-suite, against a real
+PostgreSQL built by the real migrations.
 
-| Check | Result |
+| Guarantee | Where it is tested |
 |---|---|
-| Schema applies cleanly | 20 tables created on both servers |
-| Overlapping reward rule | Rejected by the exclusion constraint |
-| Close-and-succeed rule change | Accepted; 31 May resolves to 0.1, 1 June to 0.2 |
-| Reward formula on the specification's examples | 8,000 steps + 30 min → 950 WC; 20,000 steps + 60 min → capped at 1,500 WC |
-| The specification's wallet example | Ends at exactly 3,300 WC available, 650 WC spent; ledger sums match balances |
-| Overdraft (reserve 5,000 from 3,300) | Rejected by the balance `CHECK` |
-| Negative reward | Rejected by the shape `CHECK` |
-| `UPDATE` / `DELETE` on the ledger | Rejected by trigger |
-| Reused idempotency key | Rejected by the unique index |
-| Verified price without a source | Rejected |
-| Three concurrent 2,000 WC reservations against 3,300 WC | Exactly one succeeded; the other two saw 1,300 WC and were refused |
+| Migration applies, reverts and re-applies on an empty database | `tests/test_migrations.py` |
+| Models and schema agree exactly | `tests/test_migrations.py` |
+| Triggers and exclusion constraints exist; no floating-point or timezone-naive column anywhere | `tests/test_migrations.py` |
+| Ledger rejects `UPDATE`, `DELETE`, `TRUNCATE`; audit log likewise | `tests/test_schema_integrity.py` |
+| Negative balances, malformed ledger rows (14 shapes), reused idempotency keys are refused | `tests/test_schema_integrity.py` |
+| Rule, price and rate versions cannot overlap; a verified price cites its source | `tests/test_schema_integrity.py` |
+| Test fitness data is always labelled; a day, a workout and a reward day exist once | `tests/test_schema_integrity.py` |
+| The specification's wallet example ends at exactly 3,300 WC | `tests/test_wallet_service.py` |
+| Concurrent spending cannot overdraw; the database stops it even without the lock | `tests/test_wallet_concurrency.py` |
+| A tampered balance is detected by reconciliation | `tests/test_wallet_service.py`, `tests/test_admin_api.py` |
 
-These were ad-hoc SQL checks to prove the design. They become permanent automated tests
-in Phases 1–2.
+The checks were also repeated by hand against the running Docker Compose stack: an
+`UPDATE` and a `DELETE` on the ledger and a negative balance were each refused by the
+live database.

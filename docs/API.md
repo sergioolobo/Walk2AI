@@ -1,8 +1,20 @@
 # Walk2AI — Backend API
 
-> Status: **Phase 0 design, awaiting approval.** This is the contract the backend will
-> implement in Phases 1–3. Once the backend exists, the generated OpenAPI document at
-> `/api/v1/openapi.json` is authoritative and this file becomes a guide to it.
+> Status: **Authentication, devices, wallet, administration (wallet part) and health are
+> implemented** (Phase 1). Fitness and reward-rule endpoints are Phase 2; AI, analytics
+> and the remaining administration endpoints are Phase 3. For what is implemented, the
+> generated OpenAPI document at `/api/v1/openapi.json` (interactive at `/api/v1/docs`)
+> is authoritative; this file is the guide to it and the contract for what is not yet
+> built.
+>
+> | Group | State |
+> |---|---|
+> | Authentication, account, devices | Implemented |
+> | Wallet (read) | Implemented, except `/wallet/limits` (Phase 2) |
+> | Administration | Wallet adjustments, reconciliation, audit log implemented; the rest in Phases 2–3 |
+> | Operational | Implemented |
+> | Fitness | Phase 2 |
+> | AI, Analytics | Phase 3 |
 
 ## Conventions
 
@@ -13,6 +25,9 @@
 | Credits | Integers, field names end in `_wc`. |
 | Money | Decimal **strings** (`"0.00070000"`), never JSON floats. Currency stated alongside. |
 | Auth | Browser: `HttpOnly` session cookies. iOS: `Authorization: Bearer <device token>`. |
+| Cross-origin | State-changing requests carrying an `Origin` other than the web app's, or `Sec-Fetch-Site: cross-site`, are refused with `403`. Requests with an `Authorization` header are exempt (they carry no ambient credentials). |
+| Request bodies | Unknown fields are rejected with `422`. |
+| Request id | Every response carries `X-Request-ID`; a valid incoming one is kept. Errors repeat it in the body. |
 | Errors | `application/problem+json`: `{type, title, status, detail, code}`. `code` is stable and machine-readable. |
 | Pagination | Cursor-based: `?limit=&cursor=` → `{items, next_cursor}`. |
 | Idempotency | `POST /fitness/sync` on `batch_id`; `POST /ai/chat` on `request_id`. |
@@ -23,12 +38,23 @@ Error codes that matter to clients:
 | HTTP | `code` | Meaning |
 |---|---|---|
 | 401 | `not_authenticated` | No valid session or token |
-| 403 | `forbidden` | Authenticated, not allowed (wrong role or token scope) |
+| 401 | `invalid_credentials` | Wrong e-mail or password (deliberately the same answer for both) |
+| 401 | `session_revoked` | A rotated refresh token was replayed; the login session was revoked |
+| 401 | `invalid_pairing_code` | Pairing code wrong, used or expired |
+| 403 | `forbidden` | Authenticated, not allowed (wrong role) |
+| 403 | `insufficient_scope` | Device token lacks the scope this route needs |
+| 403 | `registration_closed` | This instance does not accept new accounts |
+| 403 | `account_disabled` | Correct credentials, suspended account |
+| 403 | `cross_origin_rejected` | State-changing request from another origin |
 | 402 | `insufficient_credits` | Balance cannot cover the worst-case estimate |
 | 402 | `spending_limit_exceeded` | Per-request, daily or monthly limit would be exceeded (`detail` says which) |
 | 409 | `model_unavailable` | Model disabled, unverified price, or not available to this API account |
 | 409 | `duplicate_request` | `request_id` already used |
-| 422 | `validation_error` | Payload rejected; per-field details included |
+| 409 | `email_taken` | An account with this e-mail exists |
+| 409 | `idempotency_conflict` | Idempotency key reused with a different amount or type |
+| 409 | `reservation_not_active` | The hold was already settled, released or expired |
+| 422 | `validation_error` | Payload rejected; per-field details included (submitted values are never echoed) |
+| 429 | `rate_limited` | Too many attempts; `Retry-After` says when to try again |
 | 502 | `provider_error` | The AI provider failed; reservation released |
 | 504 | `provider_timeout` | The AI provider timed out |
 
@@ -36,16 +62,25 @@ Error codes that matter to clients:
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/auth/register` | none | Create an account. Subject to `REGISTRATION_MODE`. |
-| POST | `/auth/login` | none | Verify credentials, set session cookies. |
-| POST | `/auth/refresh` *(added)* | refresh cookie | Rotate the session. |
-| POST | `/auth/logout` | session | Revoke the session, clear cookies. |
+| POST | `/auth/register` | none | Create an account. With the default `first_user_only` mode the first account becomes the administrator and registration then closes. Password: 12–128 characters. Does not sign in. |
+| POST | `/auth/login` | none | Verify credentials, set session cookies. Returns the user, never a token. |
+| POST | `/auth/refresh` *(added)* | refresh cookie | Rotate the refresh token and issue a new access token. |
+| POST | `/auth/logout` | session (optional) | End the login session on the server, clear cookies. Always `204`. |
 | GET | `/auth/me` | session | Current user, role, timezone. |
-| PATCH | `/auth/me` *(added)* | session | Update display name, timezone. |
-| GET | `/auth/devices` *(added)* | session | List paired devices. |
-| POST | `/auth/devices/pairing-code` *(added)* | session | Issue a short-lived one-time pairing code. |
+| PATCH | `/auth/me` *(added)* | session | Update display name and timezone (must be a valid IANA name). |
+| POST | `/auth/password` *(added)* | session | Change the password; every other login session is signed out. |
+| GET | `/auth/devices` *(added)* | session | List paired devices. Tokens are never shown again. |
+| POST | `/auth/devices/pairing-code` *(added)* | session | Issue a one-time pairing code (`ABCD-EFGH`, valid 10 minutes). Replaces any unused one. |
 | POST | `/auth/devices/pair` *(added)* | pairing code | Exchange the code for a device token (shown once). |
-| DELETE | `/auth/devices/{id}` *(added)* | session | Revoke a device. |
+| GET | `/auth/devices/current` *(added)* | device token | Lets a paired device confirm its token still works. |
+| DELETE | `/auth/devices/{id}` *(added)* | session | Revoke a device; its token stops working immediately. |
+
+Session cookies: `w2a_access` (15 minutes, `Path=/`, `SameSite=Lax`) and `w2a_refresh`
+(30 days, sliding, `Path=/api/v1/auth`, `SameSite=Strict`). Both `HttpOnly`, and `Secure`
+in production. A web client calls `POST /auth/refresh` when it receives a `401`.
+
+Rate limits: login 20 per minute per address and 10 per 5 minutes per account;
+registration 10 per hour; pairing 10 per minute; password change 5 per 5 minutes.
 
 ## Fitness
 
@@ -128,11 +163,36 @@ Server-side validation (a rejected item never blocks the rest of the batch):
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | GET | `/wallet` | session | Available, reserved, lifetime earned and spent; EUR equivalent and the rate used. |
-| GET | `/wallet/history` | session | Ledger rows, newest first; filter by type and date. |
-| GET | `/wallet/summary` | session | Earned and spent today / this month; remaining daily and monthly spending headroom. |
-| GET | `/wallet/reservations` | session | Active and recent holds. |
-| GET | `/wallet/limits` *(added)* | session | Current spending limits. |
-| PUT | `/wallet/limits` *(added)* | session | Change spending limits (audit-logged). |
+| GET | `/wallet/history` | session | Ledger rows, newest first. `?limit=` (1–200), `?cursor=`, `?type=`. |
+| GET | `/wallet/summary` | session | Earned, spent and adjusted today and this month, in the user's timezone. Spending headroom is added with limits in Phase 2. |
+| GET | `/wallet/reservations` | session | Holds, newest first. `?active_only=true`. |
+| GET | `/wallet/limits` *(added, Phase 2)* | session | Current spending limits. |
+| PUT | `/wallet/limits` *(added, Phase 2)* | session | Change spending limits (audit-logged). |
+
+```json
+GET /wallet
+{
+  "available_wc": 3300,
+  "reserved_wc": 0,
+  "lifetime_earned_wc": 1950,
+  "lifetime_spent_wc": 650,
+  "wc_per_eur": "10000.00000000",
+  "available_eur": "0.3300",
+  "updated_at": "2026-11-13T12:00:00Z"
+}
+```
+
+`available_eur` is the internal allowance expressed in EUR, rounded down. It is not a
+balance at any AI provider. It is `null` if no conversion rate is configured.
+
+```json
+GET /wallet/summary
+{
+  "timezone": "Europe/Lisbon",
+  "today": { "date": "2026-07-15", "earned_wc": 250, "spent_wc": 0, "adjustments_wc": 0 },
+  "month": { "month": "2026-07", "earned_wc": 650, "spent_wc": 0, "adjustments_wc": 0 }
+}
+```
 
 There is no endpoint that sets or changes a balance for an ordinary user. Balances move
 only as a side effect of a sync, an AI request, or an admin adjustment.
@@ -222,9 +282,12 @@ Every route requires `role = admin`. Every write is recorded in `audit_log`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/admin/reward-rules` | All rule versions |
-| POST | `/admin/reward-rules` | Create a rule effective from a future date; closes the current one |
-| PUT | `/admin/reward-rules/{id}` | Edit a rule that has not started; for one in force, only its end date or `enabled` |
+| POST | `/admin/wallet/adjustments` *(added)* | **Implemented.** `ADMIN_ADJUSTMENT`: signed `amount_wc`, mandatory `reason`, optional `idempotency_key`. Cannot overdraw (`402`). |
+| GET | `/admin/wallet/reconcile` *(added)* | **Implemented.** Verify balances equal ledger sums; list discrepancies. Read-only. |
+| GET | `/admin/audit-log` *(added)* | **Implemented.** Newest first; `?limit=`, `?cursor=`, `?action=`. |
+| GET | `/admin/reward-rules` | All rule versions *(Phase 2)* |
+| POST | `/admin/reward-rules` | Create a rule effective from a future date; closes the current one *(Phase 2)* |
+| PUT | `/admin/reward-rules/{id}` | Edit a rule that has not started; for one in force, only its end date or `enabled` *(Phase 2)* |
 | GET | `/admin/models` *(added)* | Full catalogue including disabled models |
 | POST | `/admin/models` *(added)* | Add a model (disabled until verified) |
 | PUT | `/admin/models/{id}` *(added)* | Edit flags, enable or disable |
@@ -232,22 +295,19 @@ Every route requires `role = admin`. Every write is recorded in `audit_log`.
 | GET | `/admin/model-pricing` | All price versions |
 | POST | `/admin/model-pricing` *(added)* | Add a price version (closes the current one) |
 | PUT | `/admin/model-pricing/{id}` | Edit an unverified or not-yet-effective row; mark verified with a source URL |
-| GET / POST | `/admin/exchange-rates` *(added)* | View and add conversion-rate versions |
-| POST | `/admin/wallet/adjustments` *(added)* | `ADMIN_ADJUSTMENT` with a mandatory reason |
-| GET | `/admin/wallet/reconcile` *(added)* | Verify balances equal ledger sums; list anomalies |
-| GET | `/admin/audit-log` *(added)* | Read the audit log |
+| GET / POST | `/admin/exchange-rates` *(added)* | View and add conversion-rate versions *(Phase 3)* |
 
 ## Operational
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | GET | `/health` | none | Liveness |
-| GET | `/health/ready` | none | Readiness (database reachable, migrations current) |
+| GET | `/health/ready` | none | Readiness: database reachable and migrated to the revision this build expects; `503` otherwise |
 
 ## Additions to the specification's endpoint list
 
 The specification's endpoints are all present with their original paths. The additions
-exist because a required behaviour had no endpoint: session refresh, device pairing and
-revocation, the pre-submission cost estimate, workout exclusion, fitness data deletion,
-spending-limit management, the model catalogue, exchange rates, and wallet adjustment and
-reconciliation.
+exist because a required behaviour had no endpoint: session refresh, password change,
+device pairing and revocation, the pre-submission cost estimate, workout exclusion,
+fitness data deletion, spending-limit management, the model catalogue, exchange rates,
+and wallet adjustment and reconciliation.

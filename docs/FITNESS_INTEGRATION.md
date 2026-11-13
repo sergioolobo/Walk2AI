@@ -1,9 +1,10 @@
 # Walk2AI — Fitness Integration
 
-> Status: **Phase 0 research and design.** The pipeline has one unverified link that
-> only your own devices can confirm. Please run the
-> [10-minute device check](#3-device-check-please-run-this-first) before Phase 2 is
-> finalised — its result decides how workout rewards are implemented.
+> Status: **Pipeline confirmed viable; design approved.** On 2026-11-13 you confirmed on
+> your own devices that workouts synchronise from Mi Fitness to Apple Health, so Apple
+> Health is the source for both steps and workouts. The server side of this integration
+> is built in Phase 2; the iOS companion in Phase 5, after a feasibility investigation
+> (you have no Mac — see [section 9](#9-building-the-ios-companion-without-a-mac)).
 
 ## 1. The pipeline
 
@@ -27,28 +28,38 @@ and occasionally revised, and treats that as normal rather than as an error.
 
 ## 2. What Mi Fitness writes to Apple Health
 
-I could not confirm the Watch S3's exact behaviour from public sources. Xiaomi does not
-publish a per-device list, third-party sources disagree, and none mention the Watch S3 by
-name. Xiaomi's own support pages could not be opened from this environment (blocked by
-the session's network policy), so they are cited from search summaries only.
+Public sources could not settle the Watch S3's exact behaviour: Xiaomi does not publish a
+per-device list, third-party sources disagree, and none mention the Watch S3 by name
+(Xiaomi's own support pages could not be opened from the development environment, so they
+are cited from search summaries only). Your own check settled the one question that
+mattered — workouts do arrive.
 
 | Metric Walk2AI needs | HealthKit type | Does Mi Fitness write it? | Confidence | If it does not |
 |---|---|---|---|---|
 | Daily steps | `stepCount` | Yes | **High** — consistent across sources | iPhone's own step count still works (phone must be carried) |
 | Walking + running distance | `distanceWalkingRunning` | Probably | Medium — not explicitly confirmed | iPhone records it too; display-only metric, does not affect rewards |
 | Active energy | `activeEnergyBurned` | Probably | Medium — reported for older bands | Optional metric; omit |
-| Workouts (type, start, end, duration) | `HKWorkout` | **Unknown** | **Low** — one guide says yes; user reports say missing or unreliable | See [fallbacks](#8-if-workouts-do-not-reach-apple-health) |
-| Strength training | `HKWorkout` (`traditionalStrengthTraining`) | Unknown | Low | Depends on the row above, and on Mi Fitness using the right type |
-| Cycling | `HKWorkout` (`cycling`) + `distanceCycling` | Unknown | Low | As above |
+| Workouts (type, start, end, duration) | `HKWorkout` | **Yes** | **Confirmed by you** on your devices | — |
+| Strength training | `HKWorkout` (`traditionalStrengthTraining`) | Yes, as a workout | Type label to be confirmed | Unrecognised types are stored and earn nothing until classified |
+| Cycling | `HKWorkout` (`cycling`) + `distanceCycling` | Yes, as a workout | Type label to be confirmed | As above |
 
 What this means for the reward formula `WC = min(1500, 0.1 × S + 5 × M)`:
 
-- **`S` (steps) is safe.** The core of the product works with what is already confirmed.
-- **`M` (workout minutes) is at risk.** Strength training and cycling rewards depend
-  entirely on Mi Fitness writing workouts to Apple Health with usable types. This is the
-  single largest risk in the project, and it costs ten minutes to resolve.
+- **`S` (steps)** is the primary earning mechanism.
+- **`M` (workout minutes)** comes from verified workouts that are not step-based.
+- **No double reward.** Walking, running and hiking workouts are classified
+  `step_based`: their effort is already in the step count, so they add no minutes.
+- The one remaining detail is which *type label* each of your workouts carries in Apple
+  Health. A type the server does not recognise is stored and earns nothing until an
+  administrator classifies it, so an unexpected label can under-reward but never
+  over-reward.
 
-## 3. Device check (please run this first)
+## 3. Device check
+
+**Result (2026-11-13): workouts synchronise from Mi Fitness to Apple Health.** The
+procedure is kept here because the remaining observations — type labels, how
+fine-grained the step entries are, how long data takes to appear — are still useful for
+tuning Phase 2, and because it is how to diagnose the pipeline if sync ever stops.
 
 Nothing to install. Only the watch, the iPhone and the two apps you already use.
 
@@ -84,7 +95,8 @@ Nothing to install. Only the watch, the iPhone and the two apps you already use.
    devices rank above third-party apps by default. With the watch first, the watch (worn
    all day) is the primary step source and the iPhone fills gaps.
 
-Send me the answers (screenshots are ideal) and I will finalise the workout design.
+The type labels shown for a strength session, a cycling session, a walk and a run are the
+most useful of these to send me; the rest is optional.
 
 ## 4. HealthKit design
 
@@ -171,13 +183,29 @@ only the difference, re-sending is always safe.
 | Plausibility | Bounded steps per day, bounded workout duration, no future dates |
 | Test data | `source = 'test'`, forced `is_test_data`, disabled in production |
 
-## 8. If workouts do not reach Apple Health
+## 8. Other sources: Strava and beyond
 
-In order of preference:
+Apple Health is the source today. The ingestion pipeline (Phase 2) is designed so that
+another source can be added without touching validation, de-duplication, the reward
+engine or the wallet:
+
+| Piece | What adding a source involves |
+|---|---|
+| Source identity | A new member of `FitnessSource` and a one-line migration extending the `CHECK` constraints |
+| Adapter | Code that fetches from the source's **official** API and produces the same normalised day and workout records the HealthKit sync produces |
+| Canonical-source rule | A day is paid from one source only, chosen by a configured priority, so two sources reporting the same day are never summed |
+| Cross-source duplicates | Covered by the duplicate rule in section 7: same category, start within 2 minutes, similar duration → one is linked as a duplicate and not rewarded |
+
+Strava is the natural second source: Mi Fitness can push workouts to it, and it has an
+official OAuth API that a server can call directly — no phone app required. That also
+makes it a possible route for *workouts* if the native companion proves impractical
+(section 9), though not for daily step totals, which Strava does not carry.
+
+Fallbacks if the Apple Health path ever stops delivering workouts:
 
 | Option | How | Trade-off |
 |---|---|---|
-| **A. Relay through Strava** | Mi Fitness can push workouts to Strava; Strava can write workouts to Apple Health. Walk2AI then reads them from HealthKit unchanged. | One more hop and account; must confirm strength sessions survive the relay. No code change in Walk2AI. |
+| **A. Relay through Strava** | Mi Fitness → Strava → Apple Health, read from HealthKit unchanged; or Strava read directly by the backend. | One more account; strength sessions must survive the relay. |
 | **B. Manual workout log in Walk2AI** | Enter type and duration in the web app. Stored as `source = manual`, unverified. | Not verified activity. Off by default; if enabled, it gets its own explicit reward rule so the distinction stays visible in the ledger. |
 | **C. Steps only** | Run the platform on step rewards alone. | Simplest. Strength and cycling earn nothing. |
 
@@ -185,12 +213,30 @@ Not recommended: calling Xiaomi's private cloud API. It is undocumented and
 reverse-engineered, which contradicts the project's rule of using official interfaces
 only, and it would break without notice.
 
-## 9. What building the iOS app requires
+## 9. Building the iOS companion without a Mac
+
+You work on Windows, do not own a Mac, and have asked for no Apple hardware and no paid
+Apple Developer Program. That does not block Phases 1–4:
+
+- The backend validates everything a device sends, so the whole fitness pipeline —
+  sync, validation, de-duplication, rewards — is built and tested in Phase 2 with
+  clearly-labelled test data.
+- Device pairing and scoped device tokens already exist (Phase 1), so the companion's
+  server-side contract is fixed before the companion is written.
+- The companion's source is kept ready to compile on macOS. It is not built, signed or
+  deployed until you choose how.
+
+**Before Phase 5** I will investigate and report, without spending anything: what a free
+Apple account can and cannot sign, what can be built without owning a Mac and at what
+cost, what can only be tested on the phone, and which official-API alternatives to a
+native app exist (see [ROADMAP.md](ROADMAP.md#before-phase-5--feasibility-investigation)).
+
+What is known today about the native route:
 
 | Requirement | Detail |
 |---|---|
-| A Mac with a current Xcode | iOS apps cannot be built on Linux or in this cloud environment. I can write the Swift code here, but it must be compiled and run on a Mac. |
-| Apple Developer Program | US$99 per year. Reports from other projects indicate a free "Personal Team" cannot sign the HealthKit entitlement, and free builds expire after 7 days regardless — unworkable for an app that must run daily. **This is a cost; I will ask before it is needed.** |
+| macOS with a current Xcode | iOS apps cannot be compiled on Windows or Linux. Whether a hosted macOS build service is a workable substitute is part of the investigation. |
+| Apple Developer Program | US$99 per year. Reports from other projects indicate a free "Personal Team" cannot sign the HealthKit entitlement, and free builds expire after 7 days regardless. To be verified in the investigation; **nothing is purchased without your approval.** |
 | The physical iPhone | HealthKit data and background delivery cannot be tested in the Simulator. |
 | HTTPS backend | iOS refuses plain HTTP by default. A real domain and certificate are needed before the phone can sync to a deployed backend (Phase 6); local testing uses the Mac's address with a development exception. |
 

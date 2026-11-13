@@ -1,14 +1,13 @@
 # Walk2AI infrastructure
 
-**Status: not implemented.** This directory is a skeleton created in Phase 0.
-
-| Path | Will contain | Phase |
+| Path | Contents | State |
 |---|---|---|
-| `docker/` | Dockerfiles for the backend and frontend | 1, 4 |
-| `deployment/` | Production compose file, reverse-proxy configuration, backup and restore scripts, deployment runbook | 6 |
+| `docker/backend.Dockerfile` | Backend image: dependencies from the lockfile in a builder stage, slim runtime, non-root user, health check | Built and run in Phase 1 |
+| `scripts/schema_doc.py` | Turns a `pg_dump` into `docs/database/schema.sql` (`make schema-doc`) | In use |
+| `deployment/` | Production compose file, Caddy configuration, backup and restore scripts, deployment runbook | Phase 6 |
 
-The local development stack is the `docker-compose.yml` at the repository root. Today it
-defines the database only.
+The local development stack is the `docker-compose.yml` at the repository root: database,
+a one-shot migration and seed step, and the backend API. The frontend joins it in Phase 4.
 
-Nothing here creates paid resources or deploys anything on its own. Creating the
-DigitalOcean droplet and pointing a domain at it are steps you approve explicitly.
+Nothing here creates paid resources or deploys anything. Creating the DigitalOcean
+droplet and pointing a domain at it are steps you approve explicitly.

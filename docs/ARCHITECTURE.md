@@ -1,8 +1,10 @@
 # Walk2AI — Architecture
 
-> Status: **Phase 0 design, awaiting approval.** Nothing described here is implemented yet
-> unless [PROJECT_STATUS.md](../PROJECT_STATUS.md) says so. Deviations from the original
-> specification are listed in [DECISIONS.md](DECISIONS.md).
+> Status: **Architecture approved on 2026-11-13.** Phase 1 is implemented: the backend
+> foundation, authentication, device pairing and the wallet (sections 4, 7 and 11).
+> The reward engine, AI gateway, frontend and companion are designs not yet built —
+> [PROJECT_STATUS.md](../PROJECT_STATUS.md) says exactly what exists. Decisions are
+> recorded in [DECISIONS.md](DECISIONS.md).
 
 ## 1. What the system does
 
@@ -62,7 +64,7 @@ Trust boundaries, from least to most trusted:
 | Backend API | Python, FastAPI, Pydantic, SQLAlchemy 2, Alembic | Auth, fitness ingestion, reward engine, wallet, AI gateway, analytics, admin. |
 | Database | PostgreSQL 16 | System of record. Enforces ledger invariants with constraints. |
 | iOS companion | SwiftUI, HealthKit, BackgroundTasks | Reads HealthKit, syncs to the backend, shows sync status. Nothing else. |
-| Reverse proxy | Caddy (recommended) or Nginx | TLS, routing `/api` vs web, edge rate limiting, no response buffering for streams. |
+| Reverse proxy | Caddy | Automatic HTTPS, routing `/api` vs web, edge rate limiting, no response buffering for streams. |
 | AI providers | Official `openai` and `anthropic` Python SDKs | Model inference. Called only by the backend. |
 
 ## 4. Backend structure
@@ -70,22 +72,26 @@ Trust boundaries, from least to most trusted:
 ```
 backend/app/
 ├── main.py            application factory, router registration, lifespan tasks
+├── cli.py             seed · reconcile · expire-reservations
 ├── core/              config (pydantic-settings), db session, security, logging,
-│                      rate limiting, error types, clock
-├── models/            SQLAlchemy models (one module per aggregate)
+│                      middleware, rate limiting, error types, clock, timezones
+├── models/            SQLAlchemy mapping (one module per aggregate)
 ├── schemas/           Pydantic request/response models
-├── api/               thin routers: parse → authorise → call a service → serialise
+├── api/               thin routers: authorise → call a service → commit → serialise
 └── services/
-    ├── fitness/       sync ingestion, validation, de-duplication, daily aggregation
-    ├── rewards/       rule lookup, reward calculation, reward ledger
-    ├── wallet/        the ONLY code that reads/writes wallet tables
-    ├── ai/            gateway, provider adapters, pricing, cost estimation
-    └── analytics/     read-only aggregations for the dashboards
+    ├── auth/          accounts, login sessions, device pairing        (built)
+    ├── wallet/        the ONLY code that writes wallet tables         (built)
+    ├── audit/         audit trail writer                              (built)
+    ├── fitness/       sync ingestion, validation, de-duplication      (Phase 2)
+    ├── rewards/       rule lookup, reward calculation, reward ledger  (Phase 2)
+    ├── ai/            gateway, provider adapters, pricing, estimation (Phase 3)
+    └── analytics/     read-only aggregations for the dashboards       (Phase 3)
 ```
 
 Rules that keep the money logic honest:
 
-1. **Routers contain no business logic.** They never touch the database directly.
+1. **Routers contain no business logic.** They authorise, delegate to a service,
+   commit, and serialise.
 2. **`WalletService` is the single writer** of `wallet_accounts`, `wallet_transactions`
    and `wallet_reservations`. Every method locks the wallet row, changes the balance and
    appends the ledger row in one database transaction.
@@ -94,8 +100,15 @@ Rules that keep the money logic honest:
 5. **No provider call happens inside a database transaction.** Reserve → commit → call
    provider → settle in a new transaction. Row locks are held for milliseconds, never for
    the duration of a model response.
-6. **Time and randomness are injected** (`Clock`, id factory) so reward and wallet logic is
-   deterministic under test.
+6. **Time is injected** (`Clock`) so token expiry, reservation expiry and day boundaries
+   are deterministic under test.
+7. **Services never commit; the caller owns the transaction.** A service method flushes
+   inside the caller's transaction, so the reward engine and the AI gateway can compose
+   several wallet operations into one atomic unit. The router commits once the whole
+   operation has succeeded.
+
+Rules 2, 6 and 7, and the ban on floating point in money code, are enforced by tests that
+read the source (`tests/unit/test_architecture_rules.py`).
 
 ## 5. The credit economy
 
@@ -181,6 +194,24 @@ Properties:
   *explicit* exclusion of an already-rewarded workout posts a `REWARD_REVERSAL`, capped at
   the available balance (the wallet never goes negative).
 
+### What a "day" is
+
+The daily cap, daily spending limits and "today" in every summary refer to a calendar
+day in the user's IANA timezone — `Europe/Lisbon` by default. Timestamps are stored in
+UTC and converted only when a day boundary is needed, in one module
+(`app/core/timeutil.py`). Daylight saving is handled by the timezone database, not by
+arithmetic:
+
+| Local day in Lisbon | Starts (UTC) | Ends (UTC) | Length |
+|---|---|---|---|
+| A winter day (WET, UTC+0) | 00:00 | 00:00 next day | 24 h |
+| A summer day (WEST, UTC+1) | 23:00 previous day | 23:00 | 24 h |
+| Last Sunday of March (clocks forward) | 00:00 | 23:00 | 23 h |
+| Last Sunday of October (clocks back) | 23:00 previous day | 00:00 next day | 25 h |
+
+So the cap resets at Portuguese midnight all year. A summer walk at 00:30 local time
+belongs to the new day, although in UTC it is still 23:30 on the previous one.
+
 ## 7. Wallet
 
 Two balances per user: `available` (spendable) and `reserved` (held for in-flight AI
@@ -206,10 +237,24 @@ one ledger row per idempotency key                  enforced by a unique index
 ```
 
 Concurrency: every wallet operation begins with `SELECT … FOR UPDATE` on the user's wallet
-row. Two requests racing for the same credits are serialised by PostgreSQL; the second one
-sees the first one's reservation and is refused. This was exercised against PostgreSQL 16
-during Phase 0 (three concurrent reservations of 2,000 WC against 3,300 WC: exactly one
-succeeded).
+row, and always in the same order (wallet row, then reservation row), so wallet operations
+cannot deadlock each other. Two requests racing for the same credits are serialised by
+PostgreSQL; the second one sees the first one's reservation and is refused.
+
+This is tested with genuinely simultaneous transactions on separate connections: twenty
+requests for 300 WC against 1,000 WC (exactly three succeed), concurrent settlement of
+one reservation (charged once), settlement racing release and racing the expiry sweep,
+fifteen simultaneous identical rewards (paid once), and a fixed-seed random workload
+across several wallets. A negative-control test deliberately skips the lock and shows the
+database's own `CHECK` constraint stopping the overdraft.
+
+Settlement arithmetic, for a hold of R and an actual cost of C:
+
+| Case | Charged | Released | Notes |
+|---|---|---|---|
+| C = 0 | 0 | R | Nothing was billable |
+| 0 < C ≤ R | C | R − C | The normal case |
+| C > R | R + min(C − R, available) | 0 | The excess comes from the available balance, never below zero; any remainder is reported as a shortfall |
 
 ## 8. AI gateway
 
@@ -335,13 +380,20 @@ In short:
 
 | Client | Credential | Scope |
 |---|---|---|
-| Browser | Short-lived access token + rotating refresh token, both in `HttpOnly`, `Secure`, `SameSite=Lax` cookies | Everything the user's role allows |
+| Browser | 15-minute access token + rotating 30-day refresh token, both in `HttpOnly`, `Secure` cookies (`SameSite=Lax` and `Strict`); the refresh cookie is sent only to `/api/v1/auth` | Everything the user's role allows |
 | iOS companion | Long-lived device token (stored in the iOS Keychain, hashed in the database, revocable) | `fitness:sync` only |
 | Admin | Same as browser, `role = admin` | Plus `/admin/*` |
 
 The web app and API share one origin behind the reverse proxy (`/` and `/api`), so there
 is no cross-origin token handling. The phone is paired by entering a one-time code shown
 in the web app's settings; that exchange is the only time it sees a credential.
+
+A login creates a *login session* — a family of refresh tokens. The access token is a
+signed JWT, but it is honoured only while its login session is alive in the database, and
+the user's role and status are read on every request. Logout, password change, suspension
+and role changes therefore take effect immediately rather than when a token expires.
+Presenting a refresh token that has already been rotated is treated as theft: the whole
+login session is revoked.
 
 Registration defaults to `first_user_only`: the first account becomes the admin and
 registration then closes. This is a personal platform; it should not accept strangers.
@@ -362,9 +414,9 @@ registration then closes. This is a personal platform; it should not accept stra
 | | Development | Production (Phase 6) |
 |---|---|---|
 | Database | `docker compose up db` (or a local PostgreSQL 16) | PostgreSQL container on the droplet with nightly encrypted off-box backups, or DigitalOcean Managed PostgreSQL |
-| Backend | `uvicorn --reload` on :8000 | Container, non-root, migrations run as a release step |
+| Backend | `docker compose up` (container, non-root) on :8000; migrations and seed run first as a one-shot service | Same image; migrations run as a release step |
 | Frontend | `next dev` on :3000, proxying `/api` to :8000 | Container (standalone build) |
-| TLS | none (localhost) | Reverse proxy with automatic certificates |
+| TLS | none (localhost) | Caddy, with automatic certificates |
 | Secrets | `.env` (git-ignored) | Environment file on the server with `600` permissions, outside the repository |
 
 ## 14. Technology evaluation
@@ -376,11 +428,11 @@ The proposed stack is sound; the changes are small and reduce moving parts.
 | Backend | Keep FastAPI + Pydantic + SQLAlchemy 2 + Alembic | Async streaming to providers, strong typing, mature migrations. |
 | DB driver | psycopg 3 | One driver for async app code and sync Alembic. |
 | Database | Keep PostgreSQL 16 | Row locks, exclusion constraints and `NUMERIC` are exactly what a ledger needs. |
-| Auth / DB hosting | **Not Supabase** — own PostgreSQL, first-party auth in FastAPI | One user, one server. Supabase would split auth across two systems, add an external dependency and a second place where balances could be reached. Standard Postgres keeps the option open later. |
+| Auth / DB hosting | **Not Supabase** (approved) — own PostgreSQL, first-party auth in FastAPI | One user, one server. Supabase would split auth across two systems, add an external dependency and a second place where balances could be reached. Standard Postgres keeps the option open later. |
 | Queue / cache | **None in the MVP** (no Redis, no Celery) | One process, one user. In-process background task for expiring reservations; PostgreSQL for everything stateful. |
 | Frontend | Keep Next.js + Tailwind + shadcn/ui + Recharts | shadcn's chart components are built on Recharts. |
-| Reverse proxy | **Caddy** recommended over Nginx | Automatic HTTPS with a five-line config; fewer ways to misconfigure TLS. Nginx remains a drop-in alternative. |
-| iOS | Keep SwiftUI + HealthKit | The only way to read Apple Health. Requires a Mac, Xcode and the paid Apple Developer Program. |
+| Reverse proxy | **Caddy** (approved) | Automatic HTTPS with a five-line config; fewer ways to misconfigure TLS. |
+| iOS | Keep SwiftUI + HealthKit | The only way to read Apple Health natively. No Mac is available and no purchase is approved, so the build route is investigated before Phase 5 (D-07). |
 | OpenAI API surface | Responses API via the official SDK (confirm in Phase 3) | The current primary API; reports usage on streamed responses. |
 | Anthropic API surface | Messages API via the official SDK | Token counting endpoint for exact pre-request estimates. |
 

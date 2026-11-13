@@ -1,0 +1,8 @@
+# Always store and check out text with LF line endings. Shell commands and scripts
+# that run inside Linux containers break if Git on Windows converts them to CRLF.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

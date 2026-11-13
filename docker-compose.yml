@@ -1,10 +1,40 @@
 # Walk2AI — local development stack.
 #
-# Phase 0: only the database is defined. The backend (Phase 1) and frontend
-# (Phase 4) services are added here when they exist; nothing is stubbed.
-# Production composition lives in infrastructure/deployment/ (Phase 6).
+#   docker compose up --build        database + migrations + backend API on :8000
+#
+# Services are added as they are built: the frontend arrives in Phase 4. Nothing here
+# is a stub. The production composition lives in infrastructure/deployment/ (Phase 6).
+#
+# Configuration comes from .env (copy .env.example and fill in the two secrets).
 
 name: walk2ai
+
+x-backend-build: &backend-build
+  context: ./backend
+  dockerfile: ../infrastructure/docker/backend.Dockerfile
+
+x-backend-environment: &backend-environment
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-Europe/Lisbon}
+  # Inside the compose network the database is reached by its service name.
+  POSTGRES_HOST: db
+  POSTGRES_PORT: 5432
+  POSTGRES_USER: ${POSTGRES_USER:-walk2ai}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
+  POSTGRES_DB: ${POSTGRES_DB:-walk2ai}
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (see .env.example)}
+  ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+  REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  REGISTRATION_MODE: ${REGISTRATION_MODE:-first_user_only}
+  PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:3000}
+  ALLOW_TEST_FITNESS_DATA: ${ALLOW_TEST_FITNESS_DATA:-false}
+  REWARD_WINDOW_DAYS: ${REWARD_WINDOW_DAYS:-7}
+  # Provider keys stay on the backend. Unused until the AI gateway (Phase 3).
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  AI_REQUEST_TIMEOUT_SECONDS: ${AI_REQUEST_TIMEOUT_SECONDS:-120}
 
 services:
   db:
@@ -24,6 +54,32 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # One-shot: brings the schema to the current revision and inserts any missing
+  # initial configuration (reward rules, workout types, the EUR->WC rate). Both steps
+  # are idempotent, so this runs safely on every start.
+  migrate:
+    build: *backend-build
+    image: walk2ai-backend:dev
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli seed"]
+    environment: *backend-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build: *backend-build
+    image: walk2ai-backend:dev
+    restart: unless-stopped
+    environment: *backend-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
 
 volumes:
   pgdata:

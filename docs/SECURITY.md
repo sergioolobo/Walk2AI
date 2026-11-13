@@ -1,7 +1,8 @@
 # Walk2AI — Security and Privacy
 
-> Status: **Phase 0 design, awaiting approval.** Controls are marked with the phase in
-> which they are implemented. Nothing here is in place until that phase is complete.
+> Status: **Phase 1 controls are implemented and tested** (authentication, sessions,
+> device tokens, wallet integrity, audit logging, input handling). Controls belonging to
+> later phases are marked with their phase and are not in place yet.
 
 ## What is being protected
 
@@ -50,42 +51,71 @@
 
 ## Controls by area
 
-### Authentication and sessions — Phase 1
+### Authentication and sessions — implemented (Phase 1)
 
-- Passwords hashed with Argon2id (`argon2-cffi`), minimum length enforced, never logged.
-- Access token: signed, ~15 minutes. Refresh token: random, stored hashed, rotated on
-  every use; presenting an already-rotated token revokes the whole chain.
-- Cookies: `HttpOnly`, `Secure` (production), `SameSite=Lax`, scoped to the site origin.
-- Device tokens: 256 bits of randomness, shown once at pairing, stored as a SHA-256 hash,
-  kept in the iOS Keychain on the phone.
-- Role-based authorisation as a FastAPI dependency; admin routes are a separate router
-  that cannot be reached without the dependency.
+- Passwords hashed with Argon2id (`argon2-cffi`), 12–128 characters, never logged,
+  never echoed in validation errors, transparently re-hashed when parameters are raised.
+- Unknown e-mail and wrong password give the same answer and cost the same time (a decoy
+  hash is verified when the account does not exist).
+- Access token: JWT signed with HS256 (PyJWT), 15 minutes; the algorithm is pinned and
+  unsigned tokens are rejected. It is honoured only while its login session is alive in
+  the database, and role and account status are read on every request.
+- Refresh token: 256 random bits, stored as SHA-256, rotated on every use. Replaying a
+  rotated token revokes the whole login session; a 10-second grace window covers two
+  tabs refreshing at once.
+- Cookies: `HttpOnly`; `Secure` in production (the application refuses to start in
+  production otherwise); access `SameSite=Lax`, refresh `SameSite=Strict` and scoped to
+  `/api/v1/auth`.
+- Logout and password change revoke sessions on the server, not just in the browser.
+- Device tokens: 256 random bits, shown once at pairing, stored as SHA-256, scoped to
+  `fitness:sync`, revocable. Pairing codes: 8 characters from an unambiguous alphabet,
+  10 minutes, single-use, stored as an HMAC keyed with the server secret, 10 attempts
+  per minute.
+- Role-based authorisation as a FastAPI dependency declared on the admin *router*, so a
+  route added there cannot forget it.
+- Registration closed after the first account by default; the race for "first account"
+  is serialised with a database advisory lock.
+- Rate limits on login (per address and per account), registration, pairing, refresh
+  and password change.
 
-### Secrets — Phases 1 and 6
+### Secrets — implemented (Phase 1); server-side handling in Phase 6
 
-- All secrets come from environment variables, loaded through one typed settings object.
-  The application refuses to start in production with missing or placeholder secrets.
+- All secrets come from environment variables, loaded through one typed settings object
+  as `SecretStr`. The application refuses to start with a short signing secret, and in
+  production with placeholder secrets, insecure cookies, a non-HTTPS origin, open
+  registration or test data enabled. A test asserts nothing else reads the environment.
 - `.env` is git-ignored; `.env.example` contains no real values.
 - In production the environment file lives outside the repository with `600` permissions.
   DigitalOcean volumes are encrypted at rest; secrets never enter images or logs.
 - Log redaction for `Authorization` headers, cookies, keys and tokens.
 
-### Input and transport — Phases 1 and 6
+### Input and transport — application part implemented (Phase 1); TLS in Phase 6
 
 - Every request body is a Pydantic model with explicit bounds. Unknown fields rejected.
 - SQL only through SQLAlchemy with bound parameters.
+- Responses carry `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` and `Cache-Control: no-store`.
+- Unhandled errors return a generic problem+json 500 with a request id; details go to
+  the server log only.
+- Interactive API documentation is disabled in production.
 - HTTPS everywhere outside localhost; HSTS; a restrictive Content-Security-Policy for the
   web app; `X-Content-Type-Options`, `Referrer-Policy`, frame denial.
 - Assistant output is rendered as Markdown with raw HTML disabled.
 - Rate limiting per route group at the application and at the reverse proxy.
 
-### Wallet integrity — Phase 2
+### Wallet integrity — implemented (Phase 1)
 
 - Single-writer service, row locking, immutable ledger, idempotency keys, shape and
   non-negativity constraints (see [DATABASE.md](DATABASE.md#invariants-and-where-they-are-enforced)).
+- No endpoint lets a client set, add or move credits; the only write path for a person
+  is an audited administrative adjustment, which requires a reason and cannot overdraw.
+- Concurrency is tested with simultaneous transactions, including a negative control in
+  which the application lock is skipped and the database still refuses the overdraft.
 - The application's database role is not the owner of the ledger tables' triggers and
   cannot drop them (Phase 6 hardening: separate migration and runtime roles).
-- A reconciliation check compares balances with ledger sums and reports any difference.
+- A reconciliation check (`GET /admin/wallet/reconcile`, `python -m app.cli reconcile`)
+  compares balances with ledger sums and active holds and reports any difference. It
+  never "repairs": a repair would itself rewrite financial history.
 
 ### AI gateway — Phase 3
 
@@ -96,7 +126,7 @@
 - Prompts and responses are stored only in your own database. Provider-side storage
   options are turned off where the API offers the choice.
 
-### Audit logging — from Phase 1
+### Audit logging — implemented (Phase 1), extended by each later phase
 
 Recorded: registration, login success and failure, logout, session revocation, device
 pairing and revocation, changes to reward rules, prices, exchange rates, models and

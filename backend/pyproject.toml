@@ -1,0 +1,78 @@
+[project]
+name = "walk2ai-backend"
+version = "0.1.0"
+description = "Walk2AI backend: authentication, wallet, fitness ingestion, reward engine and AI gateway"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.162,<1",
+    "uvicorn>=0.54,<1",
+    "sqlalchemy[asyncio]>=2.1,<2.2",
+    "psycopg[binary]>=3.3,<4",
+    "alembic>=1.20,<2",
+    "pydantic>=2.14,<3",
+    "pydantic-settings>=2.16,<3",
+    "email-validator>=2.2",
+    "argon2-cffi>=25.1",
+    "pyjwt>=2.15,<3",
+    "tzdata>=2025.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2,<10",
+    "httpx>=0.28,<1",
+    "anyio>=4",
+    "ruff>=0.17",
+    "mypy>=2.4",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = ["error"]
+markers = [
+    "concurrency: tests that issue truly concurrent database operations",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["."]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle, pyflakes
+    "I",             # import order
+    "UP",            # modern syntax
+    "B",             # bugbear
+    "SIM",           # simplifications
+    "DTZ",           # no naive datetimes
+    "ASYNC",         # async pitfalls
+    "S",             # security (bandit)
+    "RUF",
+]
+ignore = [
+    "B008",    # FastAPI's Depends() in argument defaults is the framework's idiom
+    "RUF001",  # the wallet docs legitimately use the minus and multiplication signs
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S608"]
+"migrations/**" = ["S608"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app", "migrations", "tests"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
