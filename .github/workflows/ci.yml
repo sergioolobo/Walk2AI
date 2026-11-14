@@ -1,0 +1,84 @@
+# Continuous integration: lint, type-check and test the backend against a real
+# PostgreSQL, and prove the Docker image builds.
+#
+# Runs on pull requests and on pushes to main only, to keep usage small.
+# No secrets are used and no test calls an AI provider.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, types, tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: walk2ai
+          POSTGRES_PASSWORD: walk2ai_dev
+          POSTGRES_DB: walk2ai_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U walk2ai -d walk2ai_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      # A throwaway database inside this job. The suite refuses to run against any
+      # database whose name does not end in "_test".
+      TEST_DATABASE_URL: postgresql+psycopg://walk2ai:walk2ai_dev@localhost:5432/walk2ai_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: pip install uv==0.11.32
+
+      - name: Install dependencies (exactly as locked)
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Formatting
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Tests
+        run: uv run pytest
+
+  image:
+    name: Backend image builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -f infrastructure/docker/backend.Dockerfile -t walk2ai-backend:ci backend
