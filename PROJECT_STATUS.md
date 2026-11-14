@@ -53,10 +53,10 @@ can be tried today with labelled test activity (`docs/DEVELOPMENT.md`).
 | Check | Result |
 |---|---|
 | Automated tests | **496 passed**, 0 failed, 0 skipped (~75 s); 197 added in Phase 2 |
-| Concurrency tests repeated 3× | Stable (17 tests) |
+| Concurrency tests repeated 8× | Stable (17 tests) |
 | Ruff lint and format | Clean |
 | mypy (strict), 91 source files | Clean |
-| CI on GitHub (pull request #1) | Passed on its first run (Phase 0–1 commits): lint, types, tests, image build |
+| CI on GitHub (pull request #1) | Lint, types, tests and image build run on every push. One run failed during Phase 2 on a single test: a race inside a Phase 1 *test* (it shared a reservation id with other workers before the transaction creating it had committed). The product code was not at fault; the test was fixed and re-run 25 times. |
 | Docker image | Rebuilt with Phase 2; runs as a non-root user |
 | End-to-end over HTTP against the running Compose stack | 34 of 34 Phase 2 checks passed |
 | Live database and logs of that run | Ledger update refused; no errors logged; no password, token or secret in logs |

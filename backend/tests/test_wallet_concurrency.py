@@ -344,6 +344,7 @@ async def test_randomised_concurrent_workload_keeps_every_invariant(
         for step in range(30):
             user = local.choice(users)
             action = local.choice(["reward", "reserve", "reserve", "settle", "release", "adjust"])
+            reserved: tuple[uuid.UUID, int] | None = None
             try:
                 async with session_factory() as session, session.begin():
                     wallets = WalletService(session, clock)
@@ -354,7 +355,7 @@ async def test_randomised_concurrent_workload_keeps_every_invariant(
                     elif action == "reserve":
                         request_id, amount = uuid.uuid4(), local.randint(1, 600)
                         await wallets.reserve(user, amount, request_id=request_id, ttl=TTL)
-                        open_requests[user].append((request_id, amount))
+                        reserved = (request_id, amount)
                     elif action in ("settle", "release") and open_requests[user]:
                         request_id, amount = open_requests[user].pop(
                             local.randrange(len(open_requests[user]))
@@ -372,6 +373,11 @@ async def test_randomised_concurrent_workload_keeps_every_invariant(
                             reason="randomised workload",
                             actor_id=None,
                         )
+                # Only now is the reservation committed and visible to other workers.
+                # Sharing it any earlier would let another worker try to settle a hold
+                # that does not exist yet — as a real request never could.
+                if reserved is not None:
+                    open_requests[user].append(reserved)
                 seen[action] += 1
             except (InsufficientCredits, ReservationNotActive) as refused:
                 seen[type(refused).__name__] += 1
