@@ -1,10 +1,12 @@
 # Walk2AI — Fitness Integration
 
-> Status: **Pipeline confirmed viable; design approved.** On 2026-11-13 you confirmed on
-> your own devices that workouts synchronise from Mi Fitness to Apple Health, so Apple
-> Health is the source for both steps and workouts. The server side of this integration
-> is built in Phase 2; the iOS companion in Phase 5, after a feasibility investigation
-> (you have no Mac — see [section 9](#9-building-the-ios-companion-without-a-mac)).
+> Status: **Server side implemented (Phase 2); device side pending.** On 2026-11-13 you
+> confirmed that workouts synchronise from Mi Fitness to Apple Health, so Apple Health is
+> the source for both steps and workouts. The backend now accepts, validates, stores and
+> rewards that activity (sections 6–8), and can be exercised today with labelled test
+> activity. The iOS companion that will send the real data is Phase 5, after a
+> feasibility investigation (you have no Mac — see
+> [section 9](#9-building-the-ios-companion-without-a-mac)).
 
 ## 1. The pipeline
 
@@ -154,6 +156,9 @@ the product should not promise it. The watch → Mi Fitness hop is usually the s
 
 Every sync, whatever triggered it, does the same thing:
 
+0. Ask the server how to bucket days: `GET /fitness/sync/status` returns the user's
+   Walk2AI timezone and the reward window. Daily totals are computed for calendar days
+   in *that* timezone — the one the server rewards by — not the phone's current one.
 1. Query daily totals for a **rolling window** — the last 7 days, including today.
 2. Query workouts changed or deleted since the stored anchor.
 3. `POST /fitness/sync` with a fresh `batch_id` (see [API.md](API.md#post-fitnesssync)).
@@ -167,13 +172,15 @@ only the difference, re-sending is always safe.
 
 ## 7. Server-side integrity
 
+Implemented in Phase 2 and covered by tests (`tests/test_fitness_*.py`, `tests/test_reward_rules.py`).
+
 | Requirement | Mechanism |
 |---|---|
 | Source identification | `source` on every record; origin app and device stored for workouts |
 | Idempotent sync | `UNIQUE (user_id, client_batch_id)`; a replayed batch returns the stored result |
 | No duplicate days | `UNIQUE (user_id, activity_date, source)`; latest values overwrite |
 | No duplicate workouts | `UNIQUE (user_id, source, external_id)` on the HealthKit UUID |
-| Cross-source duplicates | Same category, start within 2 minutes, duration within 10% → the later arrival is linked via `duplicate_of` and not rewarded |
+| Duplicate workouts | Same type, start within 2 minutes, active time within 10% → one record of the group is kept (the most complete, then the earliest received), the others are linked via `duplicate_of` and not rewarded. The choice does not depend on arrival order. |
 | Overlapping workouts | Eligible minutes are bounded by the union of the intervals, so no minute counts twice |
 | Workouts across midnight | Split between days by the user's timezone |
 | Manual exclusion | `excluded_from_rewards` with a reason, via `PATCH /fitness/workouts/{id}` |
@@ -181,13 +188,16 @@ only the difference, re-sending is always safe.
 | Late arrivals | Each affected day is recalculated under its own cap and rules, within `REWARD_WINDOW_DAYS` |
 | Never rewarded twice | The reward engine pays `entitled − already awarded` per day ([ARCHITECTURE.md](ARCHITECTURE.md#6-reward-engine)) |
 | Plausibility | Bounded steps per day, bounded workout duration, no future dates |
-| Test data | `source = 'test'`, forced `is_test_data`, disabled in production |
+| Deleted in Apple Health | Marked deleted and no longer counted; a record that was only its duplicate stands on its own again; credits already paid are not clawed back |
+| One source per day | A day is paid from its authoritative source only; two sources are never summed |
+| Unknown workout types | Stored as `unclassified`, earn nothing until an administrator classifies them |
+| Test data | `source = 'test'`, forced `is_test_data`, separate administrator-only route, disabled in production |
 
 ## 8. Other sources: Strava and beyond
 
-Apple Health is the source today. The ingestion pipeline (Phase 2) is designed so that
-another source can be added without touching validation, de-duplication, the reward
-engine or the wallet:
+Apple Health is the source today. The ingestion pipeline is built so that another
+source can be added without touching validation, de-duplication, the reward engine or
+the wallet (`app/services/fitness/sources.py` and `model.py`):
 
 | Piece | What adding a source involves |
 |---|---|

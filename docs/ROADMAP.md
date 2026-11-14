@@ -14,7 +14,7 @@ marked **(you)**.
 - [x] **(you)** Architecture approved (2026-11-13)
 - [x] **(you)** Device check: workouts do reach Apple Health
 
-## Phase 1 — Backend foundation — done, awaiting your review
+## Phase 1 — Backend foundation — done
 
 - [x] Backend project: `pyproject.toml`, uv lockfile, Ruff, mypy, pytest
 - [x] Typed settings with startup validation (stricter in production)
@@ -46,35 +46,35 @@ Brought forward from Phase 2 at your request:
 Result: 299 automated tests passing; the stack was also started with Docker Compose and
 exercised end to end over HTTP.
 
-## Phase 2 — Fitness ingestion and reward engine — next
+## Phase 2 — Fitness ingestion and reward engine — done, awaiting your review
 
-Goal: activity turns into credits, correctly and exactly once.
-
-- [ ] Sync payload schemas and server-side validation (plausibility bounds, dates, types)
-- [ ] `POST /fitness/sync`: batch idempotency, upsert of days and workouts
-- [ ] A source-agnostic ingestion interface, with Apple HealthKit as the first source
+- [x] Sync payload schemas and server-side validation (plausibility bounds, dates, types)
+- [x] `POST /fitness/sync`: batch idempotency, upsert of days and workouts
+- [x] A source-agnostic ingestion pipeline, with Apple HealthKit as the first source
       and a clearly-labelled test source (so Strava or others can be added later)
-- [ ] Workout handling: cross-source duplicates, overlaps, midnight splitting in the
-      user's timezone, deletion, manual exclusion
-- [ ] `RewardEngine`: rule lookup by activity date, `min(cap, floor(0.1·S) + floor(5·M))`,
+- [x] Workout handling: duplicates, overlaps, midnight splitting in the user's timezone,
+      deletion, manual exclusion
+- [x] `RewardEngine`: rule lookup by activity date, `min(cap, floor(0.1·S) + floor(5·M))`,
       per-day reward ledger, delta payout through `WalletService`
-- [ ] Walking and running paid through steps only; other workouts earn minutes
-- [ ] Late-arrival window; high-water mark; `REWARD_REVERSAL` on explicit exclusion
-- [ ] Spending limits and the checks applied at reservation time
-- [ ] Endpoints: `/fitness/*`, `/wallet/limits`, `/admin/reward-rules`
-- [ ] Controlled test fitness data, labelled end to end, disabled in production
-- [ ] Tests: aggregation, duplicate steps and workouts, overlaps, missing and late data,
+- [x] Walking and running paid through steps only; other workouts earn minutes
+- [x] Late-arrival window; high-water mark; `REWARD_REVERSAL` on explicit exclusion
+- [x] Spending limits and the checks applied at reservation time
+- [x] Endpoints: `/fitness/*`, `/wallet/limits`, `/admin/reward-rules`,
+      `/admin/workout-types`, `/admin/rewards/recalculate`
+- [x] Controlled test fitness data, labelled end to end, disabled in production
+- [x] Deletion of fitness data that cannot be used to earn twice
+- [x] Tests: aggregation, duplicate steps and workouts, overlaps, missing and late data,
       rule changes, cap, non-eligible activities, replayed and concurrent syncs,
       Lisbon day boundaries on daylight-saving days
 
-Accepted when: the specification's examples produce the specified numbers; replaying or
-racing any sync changes nothing; a rule change never alters a past day; all required
-fitness and reward tests pass.
+Result: 496 automated tests passing (197 new); the stack was started with Docker Compose
+and the whole earning path exercised over HTTP (34 checks).
 
-Needs from you: nothing to start. The workout type names from your watch
-([DECISIONS.md](DECISIONS.md#open-questions-for-you)) refine the classification.
+Still open from this phase, not blocking: the workout type labels your watch actually
+produces ([DECISIONS.md](DECISIONS.md#open-questions-for-you)). Until confirmed, an
+unexpected label earns nothing rather than too much.
 
-## Phase 3 — AI gateway
+## Phase 3 — AI gateway — next
 
 Goal: both providers behind one interface, every request reserved, costed and recorded.
 
@@ -181,7 +181,7 @@ successfully, and the security checklist is complete.
 
 | Needed | Phase | Cost |
 |---|---|---|
-| Workout type names from Apple Health (optional refinement) | 2 | — |
+| Workout type names from Apple Health (optional refinement) | any time | — |
 | OpenAI API account, prepaid credit, API key | 3 | Prepaid amount of your choice |
 | Anthropic API account, prepaid credit, API key | 3 | Prepaid amount of your choice |
 | A decision on the iOS build route | before 5 | Depends on the route; presented first |

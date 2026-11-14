@@ -8,9 +8,10 @@ OpenAI and Anthropic models.
 Physical activity → verified activity data → Walk Credits → AI allowance → AI requests
 ```
 
-> **Status: Phase 1 complete.** The backend, database, authentication, device pairing and
-> the wallet exist and are tested. Fitness sync, the reward engine, the AI gateway, the
-> web app and the iOS companion are not built yet. See [PROJECT_STATUS.md](PROJECT_STATUS.md).
+> **Status: Phases 1 and 2 complete.** The backend, database, authentication, device
+> pairing, the wallet, fitness sync and the reward engine exist and are tested: activity
+> sent to the backend earns Walk Credits, exactly once. The AI gateway, the web app and
+> the iOS companion are not built yet. See [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
 ## Run it
 
@@ -32,9 +33,9 @@ Full instructions, including Windows: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#
 | Step | What happens | Built |
 |---|---|---|
 | Move | A Xiaomi Watch S3 and the iPhone record steps and workouts into Apple Health. | — |
-| Sync | A small iOS companion reads HealthKit and sends the raw facts to the backend. | Phase 5 (pairing: done) |
-| Earn | The backend validates them and pays Walk Credits: `min(1500, 0.1 × steps + 5 × workout minutes)` per day. | Phase 2 (wallet: done) |
-| Spend | Each AI request reserves its worst-case cost first, then is charged its actual, provider-reported cost. | Phase 3 (reservations: done) |
+| Sync | A small iOS companion reads HealthKit and sends the raw facts to the backend. | Phase 5 (pairing and the sync endpoint: done) |
+| Earn | The backend validates them and pays Walk Credits: `min(1500, 0.1 × steps + 5 × workout minutes)` per day. | **Done** |
+| Spend | Each AI request reserves its worst-case cost first, then is charged its actual, provider-reported cost. | Phase 3 (reservations and spending limits: done) |
 | See | One dashboard for activity, credits, tokens and real money spent. | Phase 4 |
 
 **1,000 Walk Credits = €0.10 of AI allowance.** Credits are an internal accounting unit.
@@ -69,7 +70,7 @@ provider accounts; Walk2AI ensures you never spend there more than you have earn
 ## Repository layout
 
 ```
-backend/         FastAPI application, migrations, tests      (Phase 1 done; 2–3 to come)
+backend/         FastAPI application, migrations, tests      (Phases 1–2 done; 3 to come)
 frontend/        Next.js web application                     (Phase 4)
 mobile/          SwiftUI + HealthKit companion               (Phase 5)
 infrastructure/  Dockerfile, scripts, deployment             (Phase 6 for deployment)

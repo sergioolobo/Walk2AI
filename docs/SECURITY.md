@@ -1,8 +1,9 @@
 # Walk2AI — Security and Privacy
 
-> Status: **Phase 1 controls are implemented and tested** (authentication, sessions,
-> device tokens, wallet integrity, audit logging, input handling). Controls belonging to
-> later phases are marked with their phase and are not in place yet.
+> Status: **Phase 1 and Phase 2 controls are implemented and tested** (authentication,
+> sessions, device tokens, wallet integrity, audit logging, input handling, fitness
+> validation, reward integrity, spending limits). Controls belonging to later phases are
+> marked with their phase and are not in place yet.
 
 ## What is being protected
 
@@ -116,6 +117,40 @@
 - A reconciliation check (`GET /admin/wallet/reconcile`, `python -m app.cli reconcile`)
   compares balances with ledger sums and active holds and reports any difference. It
   never "repairs": a repair would itself rewrite financial history.
+
+### Fitness ingestion and rewards — implemented (Phase 2)
+
+- Activity is accepted only from a paired device's scoped token. A browser session cannot
+  post activity; a device token cannot read it back, exclude workouts or delete data.
+- The payload carries facts only. It has no field for credits and unknown fields are
+  rejected, so nothing a device sends can state or influence an amount.
+- Every record is checked for plausibility on the server (no future dates, bounded steps,
+  distances and durations, coherent intervals). A rejected record is never stored.
+- Hand-entered workouts are stored as unverified and earn nothing. Unknown workout types
+  earn nothing until an administrator classifies them: an unexpected label can only
+  under-reward.
+- A day is paid only the difference between what it is worth and what it has already been
+  paid. Replayed batches, re-sent days, duplicated or overlapping workouts and
+  simultaneous syncs all pay nothing extra (tested, including under real concurrency).
+- Walking, running and hiking workouts add nothing on top of their steps.
+- Reward rules can only change days that have not begun anywhere; a rule in force cannot
+  be rewritten. Every rule change, workout-type classification and recalculation is
+  audit-logged.
+- Test activity is a separate, administrator-only route that is refused unless explicitly
+  enabled; the application will not start in production with it enabled; everything it
+  produces is labelled as test data; and stored test rows earn nothing on an instance
+  that forbids them.
+- Deleting fitness data cannot be used to earn the same days twice: the date and the
+  credits awarded are kept.
+
+### Spending controls — implemented (Phase 2)
+
+- Optional per-request, daily, monthly and minimum-balance limits, set by the user and
+  audit-logged when changed.
+- Enforced when credits are reserved, under the wallet row lock, in the user's own
+  timezone. Credits held for requests in flight count toward the limits.
+- With no limits set, the balance itself is still a hard bound: the wallet cannot be
+  overdrawn.
 
 ### AI gateway — Phase 3
 

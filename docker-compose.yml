@@ -31,6 +31,9 @@ x-backend-environment: &backend-environment
   PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:3000}
   ALLOW_TEST_FITNESS_DATA: ${ALLOW_TEST_FITNESS_DATA:-false}
   REWARD_WINDOW_DAYS: ${REWARD_WINDOW_DAYS:-7}
+  SYNC_WINDOW_DAYS: ${SYNC_WINDOW_DAYS:-30}
+  MAX_STEPS_PER_DAY: ${MAX_STEPS_PER_DAY:-100000}
+  MAX_WORKOUT_HOURS: ${MAX_WORKOUT_HOURS:-12}
   # Provider keys stay on the backend. Unused until the AI gateway (Phase 3).
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

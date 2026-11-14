@@ -1,6 +1,7 @@
 # Walk2AI — Database Design
 
-> Status: **Implemented in Phase 1.** The schema is created by the Alembic migration
+> Status: **Implemented.** Phase 2 needed no schema change: the fitness and reward tables
+> created in Phase 1 are now in use. The schema is created by the Alembic migration
 > `backend/migrations/versions/0001_initial_schema.py`, which is the source of truth.
 > [`database/schema.sql`](database/schema.sql) is generated from a migrated database for
 > reading (`make schema-doc`). The guarantees below are covered by automated tests
@@ -57,8 +58,7 @@ Standalone log: `audit_log`.
 ## Tables
 
 Twenty-one tables. Twelve are the ones named in the specification; nine are additions,
-each justified below. Tables for fitness, rewards and AI exist now but are only written
-to from Phases 2 and 3.
+each justified below. The AI tables exist now but are only written to from Phase 3.
 
 ### Identity and access
 

@@ -9,7 +9,8 @@ what was decided and why.
 | In force | An engineering choice made within the approved architecture; say so if you disagree |
 | Superseded | Replaced by a later entry |
 
-_Phase 0 was approved on 2026-11-13. Entries D-23 onward were made during Phase 1._
+_Phase 0 was approved on 2026-11-13. Entries D-23 to D-31 were made during Phase 1,
+D-32 onward during Phase 2 (approved to proceed on 2026-11-14)._
 
 ---
 
@@ -215,15 +216,98 @@ detached; the row is otherwise immutable).
 | `users.timezone` defaults to `Europe/Lisbon` | D-23 |
 | Every constraint and index is explicitly named | Stable names in errors, tests and future migrations |
 
+### D-32 · A reward rule can only start on a day that has not begun anywhere
+
+The earliest start for a new or moved rule is the UTC date plus two days: the
+furthest-ahead timezone is UTC+14, so by then the date has not started for anyone. This
+is stricter than "tomorrow" on purpose — a rule starting "tomorrow" in Lisbon would
+already be changing the current day of a user travelling in Asia. With D-11 it makes
+"rate changes never alter historical rewards" true without exceptions.
+
+### D-33 · A rule in force can only be ended; a scheduled rule can be changed or withdrawn
+
+The specification's `PUT /admin/reward-rules/{id}` is implemented with that distinction.
+Disabling a rule in force is not offered: it would change what late-arriving activity
+for past days is worth. Moving or withdrawing a scheduled rule moves the end date of the
+rule it succeeds with it, so the timeline never has a gap or an overlap.
+
+### D-34 · Test activity has its own route, and a day has one authoritative source
+
+Test data goes through `POST /fitness/sync/test` (administrator session), not the device
+route, so the two cannot be confused and each has exactly the authentication it needs.
+It is refused unless `ALLOW_TEST_FITNESS_DATA=true`; production refuses to start with
+that set. Sources have a priority order and a day is paid from the first source that has
+data for it — real activity always wins over test activity, and two sources are never
+added together. Stored test rows earn nothing on an instance that forbids them.
+
+### D-35 · Days are bucketed in the user's Walk2AI timezone, on the device too
+
+The server tells the device which timezone to use (`GET /fitness/sync/status`) and
+rejects a date that has not started in that timezone. The phone's own current timezone
+is deliberately not used: travelling would otherwise shift which "day" activity belongs
+to, and with it the daily cap.
+
+### D-36 · Among duplicate workout records, the most complete one is kept
+
+When the same session arrives under two ids (Mi Fitness and another app both writing to
+Apple Health), the record with the longest active time is kept, then the earliest
+received. The choice depends only on the records, not on arrival order, so it does not
+flip between syncs. Independently, eligible minutes are bounded by the union of workout
+intervals, so even an undetected duplicate cannot count a minute twice.
+
+### D-37 · Deleting fitness data keeps the date and the credits awarded
+
+Days, workouts and sync records are erased. Per day, the date and the credits already
+awarded remain; without them, synchronising the same days again would pay them a second
+time. This is the minimum needed to keep "never reward the same activity twice" true
+after a deletion.
+
+### D-38 · A workout deleted in Apple Health does not claw credits back
+
+Consistent with D-12: a deletion that arrives by synchronisation is a data revision, not
+an explicit decision in Walk2AI. The workout stops counting from then on; what was paid
+stays paid. The explicit exclusion in Walk2AI remains the only path that reverses credits.
+
+### D-39 · Spending limits are optional and default to none
+
+A new account has no limits; the balance itself is the bound, and the wallet can never be
+overdrawn. Limits count the *actual* cost of finished requests plus credits held for
+requests in flight. An empty wallet is reported as "insufficient credits" before any
+limit is considered, so the message points to earning rather than to settings.
+
+### D-40 · Two meanings of "earned today", both available
+
+`GET /wallet/summary` totals ledger entries *created* today (a reward for yesterday's
+walk that arrives this morning counts toward today). `GET /fitness/daily` reports what
+a given day's *activity* earned. The dashboard's "today's credits" will use the second.
+
+### D-41 · Classifying a workout type can add credits, never remove them
+
+Reclassification takes effect when a day is next evaluated (its next sync, or an explicit
+recalculation) and only for days still inside the reward window. Because paid amounts
+are a high-water mark, making a type ineligible does not take back what it already earned.
+
+### D-42 · Hypothesis as a development dependency
+
+The reward formula is checked with generated inputs as well as examples (never above a
+cap, never negative, order-independent, duplicates never add minutes). Development-only;
+nothing is added to the runtime image.
+
 ---
 
 ## Open questions for you
 
-Nothing blocks Phase 2. These improve it:
+Nothing blocks Phase 3 development. These are needed along the way:
 
-1. **Workout type names** — when convenient, tell me how your strength, cycling, walking
-   and running workouts are labelled in Apple Health (Health → Browse → Activity →
-   Workouts → open one). I have seeded sensible defaults; unknown types are stored but
-   earn nothing until classified, so nothing can be over-rewarded in the meantime.
-2. **USD→EUR rate policy** (needed in Phase 3) — a rate you set by hand (default), or a
-   daily official reference rate fetched automatically.
+1. **Workout type labels** (any time) — how your strength, cycling, walking and running
+   workouts are labelled in Apple Health (Health → Browse → Activity → Workouts → open
+   one). Until confirmed, an unexpected label earns nothing rather than too much, and an
+   administrator can classify it in one call.
+2. **USD→EUR rate policy** (Phase 3) — a rate you set by hand (default), or a daily
+   official reference rate fetched automatically.
+3. **Provider accounts** (before the end of Phase 3) — OpenAI and Anthropic API accounts
+   with a small prepaid balance and auto-recharge off. The gateway is built and tested
+   against mocks first; your keys and your approval are only needed for one real request
+   per provider at the end.
+4. **Default spending limits** (optional) — none are set today (D-39). If you would like
+   defaults for new accounts, tell me the numbers.

@@ -1,8 +1,9 @@
 # Walk2AI — Architecture
 
-> Status: **Architecture approved on 2026-11-13.** Phase 1 is implemented: the backend
-> foundation, authentication, device pairing and the wallet (sections 4, 7 and 11).
-> The reward engine, AI gateway, frontend and companion are designs not yet built —
+> Status: **Architecture approved on 2026-11-13.** Phases 1 and 2 are implemented: the
+> backend foundation, authentication, device pairing, the wallet, fitness ingestion, the
+> reward engine and spending limits (sections 4, 6, 7, 9, 10 and 11). The AI gateway,
+> frontend and companion are designs not yet built —
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md) says exactly what exists. Decisions are
 > recorded in [DECISIONS.md](DECISIONS.md).
 
@@ -82,8 +83,8 @@ backend/app/
     ├── auth/          accounts, login sessions, device pairing        (built)
     ├── wallet/        the ONLY code that writes wallet tables         (built)
     ├── audit/         audit trail writer                              (built)
-    ├── fitness/       sync ingestion, validation, de-duplication      (Phase 2)
-    ├── rewards/       rule lookup, reward calculation, reward ledger  (Phase 2)
+    ├── fitness/       sync ingestion, validation, de-duplication      (built)
+    ├── rewards/       rule lookup, reward calculation, reward ledger  (built)
     ├── ai/            gateway, provider adapters, pricing, estimation (Phase 3)
     └── analytics/     read-only aggregations for the dashboards       (Phase 3)
 ```
@@ -185,9 +186,11 @@ Properties:
 - **Deterministic.** Same facts + same rules → same result. No dependence on sync order.
 - **Late data works.** A day whose steps arrive tomorrow is recalculated and topped up,
   under that day's own cap and that day's own rules, up to `REWARD_WINDOW_DAYS` back.
-- **Rule changes are never retroactive.** Rules are matched by *activity date*. A rule
-  whose range has begun cannot be edited — only closed (`effective_until`) and succeeded
-  by a new row. The database rejects overlapping ranges.
+- **Rule changes are never retroactive.** Rules are matched by *activity date*. A new
+  rule can only start on a date that has not begun anywhere on Earth (the UTC date plus
+  two days at the earliest); a rule whose range has begun cannot be edited — only
+  closed (`effective_until`) and succeeded by a new row. The database rejects
+  overlapping ranges.
 - **Downward revisions do not claw back automatically.** HealthKit totals can shrink
   slightly when sources are re-merged. `credits_awarded` is a high-water mark: nothing is
   taken back, and nothing more is paid until the day's entitlement exceeds it again. An
@@ -345,13 +348,26 @@ temperature is offered per model, not globally.
 
 ## 9. Spending controls
 
-Checked in this order, under the wallet row lock, before anything is sent to a provider:
+The user's own limits — all optional — are checked when credits are *reserved*, under the
+wallet row lock, before anything is sent to a provider:
 
-1. Model is enabled and priced.
+1. The balance covers the worst-case estimate (otherwise: *insufficient credits* — earn
+   more; this is reported before any limit, so the user is not told to raise a limit
+   when the wallet is simply empty).
 2. Worst-case estimate ≤ per-request maximum.
-3. Spent today + active holds + estimate ≤ daily maximum.
-4. Spent this month + active holds + estimate ≤ monthly maximum.
+3. Charged today + active holds + estimate ≤ daily maximum.
+4. Charged this month + active holds + estimate ≤ monthly maximum.
 5. `available − estimate ≥ minimum balance` (minimum balance ≥ 0; no negative balances).
+
+From Phase 3 the gateway adds a check before these: the model is enabled and has a
+verified price.
+
+"Today" and "this month" are the user's own (Europe/Lisbon by default). Only the actual
+cost of a finished request counts as spent; credits held for requests in flight count
+until they settle, and a failed request gives its allowance back. Because the check runs
+under the wallet lock, simultaneous requests cannot each slip under a limit that only one
+of them fits (tested: ten concurrent 200 WC requests against a 500 WC daily limit, two
+succeed).
 
 A refusal is an HTTP 402 with a machine-readable code and a plain explanation: earn more
 credits, or explicitly configure a funding adjustment. Nothing is ever topped up
@@ -367,14 +383,33 @@ Detail and the device-side findings are in [FITNESS_INTEGRATION.md](FITNESS_INTE
 In short:
 
 - The phone sends **facts** (daily totals from HealthKit statistics queries, workout
-  records with their HealthKit UUIDs). It never sends credit amounts.
+  records with their HealthKit UUIDs). It never sends credit amounts: the payload has no
+  such field and unknown fields are rejected.
+- One sync is one database transaction under the user's wallet lock, so syncs, rewards and
+  spending for one user are serial.
 - `POST /fitness/sync` is idempotent on a client batch id, upserts days on
   `(user, date, source)` and workouts on `(user, source, external_id)`.
 - Every sync re-sends a rolling window of recent days, so late watch data and HealthKit
   corrections are reconciled without special cases.
-- The server validates plausibility (dates not in the future, bounded step counts and
-  durations, known workout types), detects cross-source duplicates and overlaps, then
-  runs the reward engine for each affected day.
+- The server validates plausibility record by record (a rejected record never blocks the
+  rest), links the same workout arriving under two ids, then runs the reward engine for
+  each affected day.
+
+The pipeline is source-agnostic by construction:
+
+```
+wire payload ──adapter──▶ SyncBatch(DayRecord…, WorkoutRecord…) ──▶ validation
+                                                                      │
+        source policy: which sources can earn, and which one is       ▼
+        authoritative for a given day (never two summed)          storage ──▶ reward engine
+```
+
+An adapter turns one source's data into normalised records; a small source policy says
+which sources may earn and which one is authoritative for a day. Adding Strava later is
+a new adapter and a new entry in that policy — validation, de-duplication, the reward
+engine and the wallet do not change. Test activity is simply another source
+(`test`), allowed to earn only where it is explicitly enabled, and labelled in every
+row and ledger entry it produces.
 
 ## 11. Authentication and authorisation
 
