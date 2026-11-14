@@ -16,11 +16,12 @@ import pytest
 
 APP = Path(__file__).resolve().parents[2] / "app"
 
-# Packages in which a float could silently corrupt an amount. Extended as the reward
-# engine (Phase 2) and the pricing engine (Phase 3) arrive.
+# Packages in which a float could silently corrupt an amount or a duration: the wallet,
+# the reward engine, fitness ingestion, and (from Phase 3) the pricing engine.
 MONEY_PACKAGES = (
     APP / "services" / "wallet",
     APP / "services" / "rewards",
+    APP / "services" / "fitness",
     APP / "services" / "ai",
 )
 
@@ -75,6 +76,28 @@ def test_the_division_rule_actually_sees_the_one_real_division() -> None:
     ]
     assert len(divisions) == 1
     assert "Decimal(credits) / wc_per_eur" in source.splitlines()[divisions[0] - 1]
+
+
+def test_the_reward_engine_never_reads_the_wall_clock_or_a_float_duration() -> None:
+    """``timedelta.total_seconds()`` returns a float; durations here are whole seconds."""
+    offences = [
+        f"{relative(path)}:{number}"
+        for package in (APP / "services" / "rewards", APP / "services" / "fitness")
+        for path in python_files(package)
+        for number, line in enumerate(path.read_text().splitlines(), start=1)
+        if "total_seconds(" in line
+    ]
+    assert offences == []
+
+
+def test_only_the_reward_engine_pays_activity_rewards() -> None:
+    """ACTIVITY_REWARD entries come from one place: RewardEngine, via WalletService."""
+    callers = sorted(
+        relative(path)
+        for path in python_files(APP)
+        if ".reward(" in path.read_text() or ".reverse_reward(" in path.read_text()
+    )
+    assert callers == ["app/services/rewards/engine.py"]
 
 
 WALLET_WRITE_MARKERS = (
