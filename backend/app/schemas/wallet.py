@@ -8,7 +8,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
-from pydantic import Field, PlainSerializer, StringConstraints
+from pydantic import Field, PlainSerializer, StringConstraints, model_validator
 
 from app.schemas.common import RequestModel, ResponseModel
 
@@ -63,10 +63,62 @@ class MonthTotals(PeriodTotals):
     month: str = Field(description="YYYY-MM")
 
 
+class LimitUsage(ResponseModel):
+    limit_wc: int | None = Field(description="Null means no limit of this kind is set.")
+    used_wc: int = Field(description="Credits charged for AI usage in the period.")
+    held_wc: int = Field(description="Credits reserved for requests still in flight.")
+    remaining_wc: int | None
+    alert: bool = Field(description="Usage has reached the alert threshold.")
+
+
+class SpendingStatus(ResponseModel):
+    max_request_wc: int | None
+    min_balance_wc: int
+    alert_threshold_pct: int
+    daily: LimitUsage
+    monthly: LimitUsage
+
+
 class WalletSummaryResponse(ResponseModel):
     timezone: str = Field(description="The timezone that defines 'today' and 'this month'.")
     today: TodayTotals
     month: MonthTotals
+    spending: SpendingStatus
+
+
+class SpendingLimitsResponse(ResponseModel):
+    max_request_wc: int | None
+    max_daily_wc: int | None
+    max_monthly_wc: int | None
+    min_balance_wc: int
+    alert_threshold_pct: int
+    updated_at: datetime
+
+
+class SpendingLimitsUpdate(RequestModel):
+    """Replaces all limits. Null removes a limit."""
+
+    max_request_wc: Annotated[int, Field(ge=1, le=10_000_000)] | None = None
+    max_daily_wc: Annotated[int, Field(ge=1, le=10_000_000)] | None = None
+    max_monthly_wc: Annotated[int, Field(ge=1, le=100_000_000)] | None = None
+    min_balance_wc: Annotated[int, Field(ge=0, le=10_000_000)] = 0
+    alert_threshold_pct: Annotated[int, Field(ge=1, le=100)] = 80
+
+    @model_validator(mode="after")
+    def _coherent(self) -> "SpendingLimitsUpdate":
+        if (
+            self.max_daily_wc is not None
+            and self.max_monthly_wc is not None
+            and self.max_daily_wc > self.max_monthly_wc
+        ):
+            raise ValueError("the daily limit cannot be larger than the monthly limit")
+        if (
+            self.max_request_wc is not None
+            and self.max_daily_wc is not None
+            and self.max_request_wc > self.max_daily_wc
+        ):
+            raise ValueError("the per-request limit cannot be larger than the daily limit")
+        return self
 
 
 class ReservationResponse(ResponseModel):

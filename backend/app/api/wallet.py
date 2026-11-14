@@ -8,19 +8,25 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import ClockDep, PrincipalDep, SessionDep, WalletServiceDep
+from app.api.deps import ClockDep, PrincipalDep, RequestMetaDep, SessionDep, WalletServiceDep
 from app.core.timeutil import day_bounds_utc, local_date, month_bounds_utc
-from app.models.enums import TransactionType
-from app.models.wallet import WalletReservation, WalletTransaction
+from app.models.enums import ActorType, TransactionType
+from app.models.wallet import SpendingLimits, WalletReservation, WalletTransaction
 from app.schemas.wallet import (
+    LimitUsage,
     MonthTotals,
     ReservationResponse,
+    SpendingLimitsResponse,
+    SpendingLimitsUpdate,
+    SpendingStatus,
     TodayTotals,
     TransactionPage,
     TransactionResponse,
     WalletResponse,
     WalletSummaryResponse,
 )
+from app.services.audit import record_audit
+from app.services.wallet import limits as spending
 from app.services.wallet import queries
 
 router = APIRouter(prefix="/wallet", tags=["wallet"])
@@ -88,17 +94,45 @@ async def wallet_history(
     return TransactionPage(items=[transaction_response(tx) for tx in rows], next_cursor=next_cursor)
 
 
+def _usage(status: spending.LimitStatus) -> LimitUsage:
+    return LimitUsage(
+        limit_wc=status.limit,
+        used_wc=status.used,
+        held_wc=status.held,
+        remaining_wc=status.remaining,
+        alert=status.alert,
+    )
+
+
+def _limits_response(limits: SpendingLimits) -> SpendingLimitsResponse:
+    return SpendingLimitsResponse(
+        max_request_wc=limits.max_request_wc,
+        max_daily_wc=limits.max_daily_wc,
+        max_monthly_wc=limits.max_monthly_wc,
+        min_balance_wc=limits.min_balance_wc,
+        alert_threshold_pct=limits.alert_threshold_pct,
+        updated_at=limits.updated_at,
+    )
+
+
 @router.get("/summary", response_model=WalletSummaryResponse)
 async def wallet_summary(
-    principal: PrincipalDep, session: SessionDep, clock: ClockDep
+    principal: PrincipalDep, session: SessionDep, wallets: WalletServiceDep, clock: ClockDep
 ) -> WalletSummaryResponse:
-    """Totals for today and this month, in the user's own timezone."""
+    """Totals for today and this month, and how much of each spending limit is used —
+    all in the user's own timezone."""
     user = principal.user
-    today = local_date(clock.now(), user.timezone)
+    now = clock.now()
+    today = local_date(now, user.timezone)
     day_start, day_end = day_bounds_utc(today, user.timezone)
     month_start, month_end = month_bounds_utc(today.year, today.month, user.timezone)
     day = await queries.period_totals(session, user.id, start=day_start, end=day_end)
     month = await queries.period_totals(session, user.id, start=month_start, end=month_end)
+
+    wallet = await wallets.get_wallet(user.id)
+    limits = await session.get(SpendingLimits, user.id)
+    threshold = limits.alert_threshold_pct if limits else 80
+    held = wallet.reserved_balance
     return WalletSummaryResponse(
         timezone=user.timezone,
         today=TodayTotals(
@@ -110,7 +144,67 @@ async def wallet_summary(
             spent_wc=month.spent,
             adjustments_wc=month.adjustments,
         ),
+        spending=SpendingStatus(
+            max_request_wc=limits.max_request_wc if limits else None,
+            min_balance_wc=limits.min_balance_wc if limits else 0,
+            alert_threshold_pct=threshold,
+            daily=_usage(
+                spending.limit_status(
+                    limits.max_daily_wc if limits else None, day.spent, held, threshold
+                )
+            ),
+            monthly=_usage(
+                spending.limit_status(
+                    limits.max_monthly_wc if limits else None, month.spent, held, threshold
+                )
+            ),
+        ),
     )
+
+
+@router.get("/limits", response_model=SpendingLimitsResponse)
+async def get_limits(
+    principal: PrincipalDep, session: SessionDep, clock: ClockDep
+) -> SpendingLimitsResponse:
+    """The user's own spending limits. Null means no limit of that kind."""
+    limits = await spending.get_limits(session, principal.user.id, clock.now())
+    await session.commit()
+    return _limits_response(limits)
+
+
+@router.put("/limits", response_model=SpendingLimitsResponse)
+async def put_limits(
+    body: SpendingLimitsUpdate,
+    principal: PrincipalDep,
+    session: SessionDep,
+    clock: ClockDep,
+    meta: RequestMetaDep,
+) -> SpendingLimitsResponse:
+    """Replace the spending limits. Applied to every reservation from now on."""
+    limits, changes = await spending.replace_limits(
+        session,
+        principal.user.id,
+        clock.now(),
+        max_request_wc=body.max_request_wc,
+        max_daily_wc=body.max_daily_wc,
+        max_monthly_wc=body.max_monthly_wc,
+        min_balance_wc=body.min_balance_wc,
+        alert_threshold_pct=body.alert_threshold_pct,
+    )
+    if changes:
+        record_audit(
+            session,
+            clock,
+            action="wallet.limits_changed",
+            actor_type=ActorType.ADMIN if principal.user.is_admin else ActorType.USER,
+            actor_user_id=principal.user.id,
+            entity_type="spending_limits",
+            entity_id=principal.user.id,
+            details=changes,
+            meta=meta,
+        )
+    await session.commit()
+    return _limits_response(limits)
 
 
 @router.get("/reservations", response_model=list[ReservationResponse])

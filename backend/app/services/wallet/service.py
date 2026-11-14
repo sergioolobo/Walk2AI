@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import Clock
 from app.models.enums import ReservationStatus, TransactionType
+from app.models.user import User
 from app.models.wallet import SpendingLimits, WalletAccount, WalletReservation, WalletTransaction
 from app.services.wallet.errors import (
     DuplicateRequest,
@@ -39,6 +40,7 @@ from app.services.wallet.errors import (
     ReservationNotFound,
     WalletNotFound,
 )
+from app.services.wallet.limits import enforce_limits, has_any_limit, spending_usage
 
 _ADJUSTMENT_TYPES = (TransactionType.MANUAL_ADJUSTMENT, TransactionType.ADMIN_ADJUSTMENT)
 _EARNING_TYPES = (TransactionType.ACTIVITY_REWARD.value, TransactionType.REWARD_REVERSAL.value)
@@ -104,6 +106,17 @@ class WalletService:
         if reservation is None:
             raise ReservationNotFound()
         return reservation
+
+    # ---------------------------------------------------------------- locking
+
+    async def lock(self, user_id: uuid.UUID) -> WalletAccount:
+        """Take the user's wallet row lock for the rest of the current transaction.
+
+        Everything that earns or spends for a user goes through this lock, so a caller
+        that needs several steps to be atomic with respect to the wallet — a fitness
+        sync that validates, stores and then rewards — takes it first.
+        """
+        return await self._lock_wallet(user_id)
 
     # --------------------------------------------------------------- creation
 
@@ -249,6 +262,7 @@ class WalletService:
             )
 
         now = self._clock.now()
+        await self._enforce_spending_limits(wallet, amount)
         reservation = WalletReservation(
             user_id=wallet.user_id,
             wallet_id=wallet.id,
@@ -450,6 +464,28 @@ class WalletService:
         return ReconciliationReport(wallets_checked=len(rows), discrepancies=tuple(discrepancies))
 
     # --------------------------------------------------------------- internals
+
+    async def _enforce_spending_limits(self, wallet: WalletAccount, amount: int) -> None:
+        """Apply the user's own spending limits. Runs under the wallet lock, so two
+        simultaneous requests cannot both pass a limit that only one of them fits."""
+        limits = await self._session.get(SpendingLimits, wallet.user_id)
+        if limits is None or not has_any_limit(limits):
+            return
+        timezone = await self._session.scalar(
+            select(User.timezone).where(User.id == wallet.user_id)
+        )
+        if timezone is None:  # pragma: no cover - a wallet always has a user
+            raise WalletNotFound()
+        usage = await spending_usage(
+            self._session, wallet.user_id, timezone=timezone, now=self._clock.now()
+        )
+        enforce_limits(
+            limits,
+            usage,
+            available=wallet.available_balance,
+            held=wallet.reserved_balance,
+            amount=amount,
+        )
 
     async def _lock_wallet(self, user_id: uuid.UUID) -> WalletAccount:
         wallet = await self._session.scalar(

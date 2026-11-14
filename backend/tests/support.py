@@ -3,6 +3,7 @@
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import httpx
 from sqlalchemy import select
@@ -122,3 +123,80 @@ async def assert_ledger_consistent(
     async with session_factory() as session:
         report = await WalletService(session, clock).reconcile()
     assert report.ok, f"ledger out of balance: {report.discrepancies}"
+
+
+# --------------------------------------------------------------------- fitness
+
+
+async def seed_configuration(session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """The initial reward rules, workout types and EUR->WC rate."""
+    from app.seeds import seed_initial_configuration
+
+    async with session_factory() as session, session.begin():
+        await seed_initial_configuration(session)
+
+
+async def pair_device(client: httpx.AsyncClient, name: str = "iPhone 17 Pro") -> str:
+    """Pair a device for the signed-in user of ``client``; returns the device token."""
+    code = (await client.post(f"{API}/auth/devices/pairing-code")).json()["code"]
+    # Pairing needs no session; an Authorization header keeps cookies out of the picture.
+    response = await client.post(
+        f"{API}/auth/devices/pair",
+        json={"code": code, "name": name},
+        headers={"Authorization": "Bearer pairing"},
+    )
+    assert response.status_code == 201, response.text
+    token: str = response.json()["token"]
+    return token
+
+
+def day(date_: str, steps: int, **extra: object) -> dict[str, Any]:
+    return {"date": date_, "steps": steps, **extra}
+
+
+def workout(
+    external_id: str,
+    kind: str,
+    start: str,
+    minutes: int,
+    *,
+    active_minutes: int | None = None,
+    **extra: object,
+) -> dict[str, Any]:
+    """A workout payload. ``start`` is ISO 8601 with an offset."""
+    begin = datetime.fromisoformat(start)
+    active = minutes if active_minutes is None else active_minutes
+    return {
+        "external_id": external_id,
+        "type": kind,
+        "start": begin.isoformat(),
+        "end": (begin + timedelta(minutes=minutes)).isoformat(),
+        "duration_seconds": active * 60,
+        **extra,
+    }
+
+
+async def sync(
+    client: httpx.AsyncClient,
+    token: str,
+    *,
+    days: list[dict[str, Any]] | None = None,
+    workouts: list[dict[str, Any]] | None = None,
+    deleted: list[str] | None = None,
+    batch_id: str | None = None,
+    expect: int = 200,
+) -> dict[str, Any]:
+    """POST /fitness/sync as a paired device and return the JSON body."""
+    response = await client.post(
+        f"{API}/fitness/sync",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "batch_id": batch_id or str(uuid.uuid4()),
+            "days": days or [],
+            "workouts": workouts or [],
+            "deleted_workout_ids": deleted or [],
+        },
+    )
+    assert response.status_code == expect, response.text
+    body: dict[str, Any] = response.json()
+    return body

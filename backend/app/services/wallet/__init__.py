@@ -14,6 +14,7 @@ from app.services.wallet.errors import (
     ReservationNotFound,
     WalletNotFound,
 )
+from app.services.wallet.limits import SpendingLimitExceeded
 from app.services.wallet.service import (
     Discrepancy,
     ReconciliationReport,
@@ -32,6 +33,7 @@ __all__ = [
     "ReservationNotActive",
     "ReservationNotFound",
     "Settlement",
+    "SpendingLimitExceeded",
     "WalletNotFound",
     "WalletService",
 ]

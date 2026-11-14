@@ -67,9 +67,20 @@ class Settings(BaseSettings):
     # --- Wallet ----------------------------------------------------------
     reservation_sweep_interval_seconds: int = Field(default=60, ge=5)
 
-    # --- Fitness (used from Phase 2) -------------------------------------
+    # --- Fitness ---------------------------------------------------------
+    # Clearly-labelled test activity, for exercising the reward engine without a
+    # device. Never in production.
     allow_test_fitness_data: bool = False
+    # How many days back late-arriving activity can still earn credits.
     reward_window_days: int = Field(default=7, ge=1, le=60)
+    # How many days back activity is accepted at all (older data is rejected).
+    sync_window_days: int = Field(default=30, ge=1, le=366)
+    # Plausibility bounds: anything beyond these is rejected, not stored.
+    max_steps_per_day: int = Field(default=100_000, ge=1_000)
+    max_distance_km_per_day: int = Field(default=500, ge=1)
+    max_workout_hours: int = Field(default=12, ge=1, le=24)
+    max_days_per_sync: int = Field(default=62, ge=1, le=400)
+    max_workouts_per_sync: int = Field(default=500, ge=1, le=5_000)
 
     # --- AI providers (used from Phase 3; backend only) -------------------
     openai_api_key: SecretStr | None = None
@@ -80,6 +91,8 @@ class Settings(BaseSettings):
     def _validate(self) -> Self:
         if self.default_timezone not in available_timezones():
             raise ValueError(f"DEFAULT_TIMEZONE {self.default_timezone!r} is not an IANA timezone")
+        if self.reward_window_days > self.sync_window_days:
+            raise ValueError("REWARD_WINDOW_DAYS cannot exceed SYNC_WINDOW_DAYS")
 
         secret = self.jwt_secret.get_secret_value()
         if len(secret) < MIN_SECRET_LENGTH:

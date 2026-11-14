@@ -18,6 +18,8 @@ from app.models.user import DeviceToken, User
 from app.services.audit import RequestMeta
 from app.services.auth import AuthService, DeviceService
 from app.services.auth.devices import SCOPE_FITNESS_SYNC
+from app.services.fitness.ingestion import FitnessIngestionService
+from app.services.rewards.rules import RewardRuleService
 from app.services.wallet import WalletService
 
 ACCESS_COOKIE = "w2a_access"
@@ -72,7 +74,19 @@ def get_wallet_service(session: SessionDep, clock: ClockDep) -> WalletService:
     return WalletService(session, clock)
 
 
+def get_ingestion_service(
+    session: SessionDep, settings: SettingsDep, clock: ClockDep
+) -> FitnessIngestionService:
+    return FitnessIngestionService(session, settings=settings, clock=clock)
+
+
+def get_reward_rule_service(session: SessionDep, clock: ClockDep) -> RewardRuleService:
+    return RewardRuleService(session, clock)
+
+
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+IngestionServiceDep = Annotated[FitnessIngestionService, Depends(get_ingestion_service)]
+RewardRuleServiceDep = Annotated[RewardRuleService, Depends(get_reward_rule_service)]
 DeviceServiceDep = Annotated[DeviceService, Depends(get_device_service)]
 WalletServiceDep = Annotated[WalletService, Depends(get_wallet_service)]
 
@@ -150,3 +164,26 @@ async def require_fitness_device(request: Request, devices: DeviceServiceDep) ->
 
 
 FitnessDeviceDep = Annotated[DevicePrincipal, Depends(require_fitness_device)]
+
+
+async def get_fitness_reader(
+    request: Request, auth: AuthServiceDep, devices: DeviceServiceDep
+) -> User:
+    """The user behind either credential: a paired device or a browser session.
+
+    Used only by read-only fitness status routes that both the companion and the web
+    app need.
+    """
+    if "authorization" in request.headers:
+        user, _ = await devices.authenticate(
+            _bearer_token(request), required_scope=SCOPE_FITNESS_SYNC
+        )
+        return user
+    token = request.cookies.get(ACCESS_COOKIE)
+    if not token:
+        raise NotAuthenticated("Sign in to continue.")
+    user, _ = await auth.authenticate(token)
+    return user
+
+
+FitnessReaderDep = Annotated[User, Depends(get_fitness_reader)]
