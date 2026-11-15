@@ -1,1 +1,1 @@
-"""AI gateway: provider adapters, pricing, cost estimation (Phase 3)."""
+"""AI gateway: provider adapters, pricing, catalogue, chat orchestration."""

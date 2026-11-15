@@ -26,8 +26,18 @@ MONEY_PACKAGES = (
 )
 
 
+# Provider adapters translate to the SDKs' own wire types (``temperature`` is a float by
+# the providers' API contract). They do no money arithmetic: pricing.py does, on the
+# token counts they return, and is fully covered by the rules below.
+PROVIDER_ADAPTERS = APP / "services" / "ai" / "providers"
+
+
 def python_files(root: Path) -> Iterator[Path]:
     yield from sorted(p for p in root.rglob("*.py") if "__pycache__" not in p.parts)
+
+
+def money_files(root: Path) -> Iterator[Path]:
+    yield from (p for p in python_files(root) if PROVIDER_ADAPTERS not in p.parents)
 
 
 def relative(path: Path) -> str:
@@ -42,7 +52,7 @@ def test_the_source_tree_is_where_these_rules_expect_it() -> None:
 @pytest.mark.parametrize("package", MONEY_PACKAGES, ids=lambda p: p.name)
 def test_money_code_contains_no_floating_point(package: Path) -> None:
     offences: list[str] = []
-    for path in python_files(package):
+    for path in money_files(package):
         for node in ast.walk(ast.parse(path.read_text(), filename=str(path))):
             if isinstance(node, ast.Constant) and isinstance(node.value, float):
                 offences.append(f"{relative(path)}:{node.lineno} float literal {node.value!r}")
@@ -55,7 +65,7 @@ def test_money_code_contains_no_floating_point(package: Path) -> None:
 def test_true_division_in_money_code_is_only_ever_on_decimals(package: Path) -> None:
     """``/`` on two ints yields a float. Money code divides only Decimals, explicitly."""
     offences: list[str] = []
-    for path in python_files(package):
+    for path in money_files(package):
         source = path.read_text()
         lines = source.splitlines()
         for node in ast.walk(ast.parse(source, filename=str(path))):
@@ -173,3 +183,30 @@ def test_business_logic_does_not_read_the_wall_clock() -> None:
 def test_admin_router_enforces_the_admin_role_for_every_route() -> None:
     source = (APP / "api" / "admin.py").read_text()
     assert "dependencies=[Depends(require_admin)]" in source
+
+
+def test_provider_adapters_hold_no_money_logic() -> None:
+    """The one exemption above stays honest: adapters never price anything."""
+    offences = [
+        f"{relative(path)}: {marker}"
+        for path in python_files(PROVIDER_ADAPTERS)
+        for marker in ("Decimal(", "price", "credits", "WalletService", "_wc")
+        if marker in path.read_text()
+    ]
+    assert offences == []
+
+
+def test_provider_sdks_are_imported_only_by_their_adapters() -> None:
+    """The gateway, routers and everything else see one provider-neutral interface."""
+    offences = [
+        relative(path)
+        for path in python_files(APP)
+        if PROVIDER_ADAPTERS not in path.parents
+        and any(
+            line.strip().startswith(
+                ("import openai", "import anthropic", "from openai", "from anthropic")
+            )
+            for line in path.read_text().splitlines()
+        )
+    ]
+    assert offences == []

@@ -82,10 +82,22 @@ class Settings(BaseSettings):
     max_days_per_sync: int = Field(default=62, ge=1, le=400)
     max_workouts_per_sync: int = Field(default=500, ge=1, le=5_000)
 
-    # --- AI providers (used from Phase 3; backend only) -------------------
+    # --- AI providers (backend only; never returned by any endpoint) -------
     openai_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
+    # Optional overrides of the providers' API addresses (proxies, test doubles).
+    openai_base_url: str | None = None
+    anthropic_base_url: str | None = None
     ai_request_timeout_seconds: int = Field(default=120, ge=5, le=900)
+    # Output allowance per request when the client does not ask for one, and the most it
+    # may ask for. The reservation covers this many output tokens, reasoning included.
+    ai_default_max_output_tokens: int = Field(default=2048, ge=16, le=128_000)
+    ai_max_output_tokens: int = Field(default=8192, ge=16, le=128_000)
+    # How many earlier messages of a conversation are sent with each request. Every one of
+    # them is billed again as input, so this bounds what a long conversation costs.
+    ai_history_messages: int = Field(default=20, ge=0, le=500)
+    # A hold outlives its request by this much before the sweeper may release it.
+    ai_reservation_margin_seconds: int = Field(default=300, ge=30, le=3600)
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -93,6 +105,8 @@ class Settings(BaseSettings):
             raise ValueError(f"DEFAULT_TIMEZONE {self.default_timezone!r} is not an IANA timezone")
         if self.reward_window_days > self.sync_window_days:
             raise ValueError("REWARD_WINDOW_DAYS cannot exceed SYNC_WINDOW_DAYS")
+        if self.ai_default_max_output_tokens > self.ai_max_output_tokens:
+            raise ValueError("AI_DEFAULT_MAX_OUTPUT_TOKENS cannot exceed AI_MAX_OUTPUT_TOKENS")
 
         secret = self.jwt_secret.get_secret_value()
         if len(secret) < MIN_SECRET_LENGTH:
