@@ -45,6 +45,13 @@ function Invoke-Api {
     }
 }
 
+# Windows PowerShell 5.1 returns a JSON array as ONE object; this lists its items one by
+# one in every PowerShell version.
+function Get-List {
+    param([string]$Path)
+    return @(Invoke-Api GET $Path | ForEach-Object { $_ })
+}
+
 function Write-Step([string]$Text) { Write-Host ""; Write-Host "== $Text" -ForegroundColor Cyan }
 
 # ------------------------------------------------------------------ 1. sessão
@@ -81,9 +88,9 @@ try {
     Write-Host "Não foi possível ler a taxa do BCE; uso 0.905." -ForegroundColor Yellow
 }
 $rateText = $rate.ToString("0.######", $Invariant)
-$current = @(Invoke-Api GET "/admin/exchange-rates") |
-    Where-Object { $_.base_currency -eq "USD" -and $_.quote_currency -eq "EUR" -and $null -eq $_.effective_until }
-if ($current -and ([decimal]::Parse($current[0].rate, $Invariant) -eq $rate)) {
+$current = @(Get-List "/admin/exchange-rates" |
+    Where-Object { $_.base_currency -eq "USD" -and $_.quote_currency -eq "EUR" -and $null -eq $_.effective_until })
+if ($current.Count -gt 0 -and ([decimal]::Parse($current[0].rate, $Invariant) -eq $rate)) {
     Write-Host "Já em vigor: 1 USD = $rateText EUR."
 } else {
     Invoke-Api POST "/admin/exchange-rates" @{
@@ -94,7 +101,7 @@ if ($current -and ([decimal]::Parse($current[0].rate, $Invariant) -eq $rate)) {
 
 # ------------------------------------------------------------------ 3. modelos
 Write-Step "Confirmar e ativar modelos"
-$catalogue = @(Invoke-Api GET "/admin/models")
+$catalogue = Get-List "/admin/models"
 $ready = @()
 foreach ($identifier in $Models) {
     $model = $catalogue | Where-Object { $_.model_identifier -eq $identifier } | Select-Object -First 1
