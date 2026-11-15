@@ -26,6 +26,12 @@ from app.core.ratelimit import SlidingWindowLimiter
 from app.core.security import PasswordService
 from app.services.ai.gateway import AIGateway, wait_for_inflight
 from app.services.ai.providers import ProviderAdapter, build_providers
+from app.services.ai.reference_rates import (
+    EcbRateFetcher,
+    RateFetcher,
+    RefreshState,
+    run_rate_refresher,
+)
 from app.services.maintenance import run_maintenance
 
 logger = logging.getLogger("walk2ai")
@@ -49,8 +55,10 @@ def create_app(
     *,
     clock: Clock | None = None,
     providers: Mapping[str, ProviderAdapter] | None = None,
+    rate_fetcher: RateFetcher | None = None,
 ) -> FastAPI:
-    """``providers`` replaces the adapters built from the configured API keys (tests)."""
+    """``providers`` replaces the adapters built from the configured API keys, and
+    ``rate_fetcher`` the ECB reference-rate source (tests)."""
     settings = settings or get_settings()
     configure_logging(settings.log_level)
 
@@ -62,6 +70,11 @@ def create_app(
         dict(providers) if providers is not None else build_providers(settings)
     )
     ai_inflight: set[asyncio.Task[None]] = set()
+    ecb_fetcher: EcbRateFetcher | None = None
+    if rate_fetcher is None:
+        rate_fetcher = ecb_fetcher = EcbRateFetcher()
+    fetch_rate: RateFetcher = rate_fetcher
+    rate_state = RefreshState()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -72,15 +85,33 @@ def create_app(
                 interval=timedelta(seconds=settings.reservation_sweep_interval_seconds),
             )
         )
+        background = [sweeper]
+        if settings.exchange_rate_source == "ecb":
+            background.append(
+                asyncio.create_task(
+                    run_rate_refresher(
+                        session_factory,
+                        app_clock,
+                        fetch_rate,
+                        interval=timedelta(minutes=settings.exchange_rate_refresh_minutes),
+                        state=rate_state,
+                    )
+                )
+            )
         logger.info("walk2ai backend started", extra={"environment": settings.environment})
         try:
             yield
         finally:
             # Requests in progress are paid for: let them finish and settle first.
             await wait_for_inflight(ai_inflight, SHUTDOWN_GRACE_SECONDS)
-            sweeper.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await sweeper
+            for task in background:
+                task.cancel()
+            for task in background:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+            if ecb_fetcher is not None:
+                with contextlib.suppress(Exception):
+                    await ecb_fetcher.aclose()
             for adapter in ai_providers.values():
                 with contextlib.suppress(Exception):
                     await adapter.aclose()
@@ -101,6 +132,8 @@ def create_app(
     app.state.session_factory = session_factory
     app.state.clock = app_clock
     app.state.rate_limiter = SlidingWindowLimiter()
+    app.state.rate_fetcher = fetch_rate
+    app.state.rate_refresh = rate_state
     app.state.ai_providers = ai_providers
     app.state.ai_inflight = ai_inflight
     app.state.ai_gateway = AIGateway(

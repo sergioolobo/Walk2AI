@@ -112,14 +112,17 @@ cannot be used. To make one usable you need a real key, and a real request costs
 so ask before doing it. The steps, once you have approved a request:
 
 1. Put `ANTHROPIC_API_KEY=…` (and/or `OPENAI_API_KEY=…`) in `.env`; restart.
-2. `POST /admin/exchange-rates` `{"base_currency":"USD","quote_currency":"EUR","rate":"0.92","source":"…"}`
+2. Nothing to do for the USD→EUR rate: it is fetched from the ECB at start-up
+   (`GET /admin/exchange-rates/status` shows it; `POST /admin/exchange-rates/refresh`
+   fetches it now).
 3. `POST /admin/models/{id}/check` — free: it reads the model's metadata.
 4. `PUT /admin/models/{id}` `{"enabled": true}`
 5. Give yourself credits (test activity above, or `POST /admin/wallet/adjustments`).
 6. `POST /ai/estimate`, then `POST /ai/chat`.
 
 On Windows, `infrastructure/scripts/first-ai-request.ps1` does steps 2–6 for you
-(ECB rate of the day, check, enable, credits) and asks before sending one real message
+(confirms a rate is in force, checks and enables the models, adds credits) and asks
+before sending one real message
 to each enabled model:
 
 ```powershell
@@ -167,7 +170,7 @@ backend/
 │       ├── ai/            pricing, catalogue, gateway, conversations, providers/
 │       └── analytics/     dashboard aggregations
 ├── migrations/            Alembic; versions/0001_initial_schema.py, 0002_…
-└── tests/                 635 tests
+└── tests/                 658 tests
 frontend/                  (Phase 4)
 mobile/                    (Phase 5)
 infrastructure/
@@ -232,6 +235,7 @@ pushes to `main`.
 | `test_ai_chat.py` | 25 | The gateway end to end: exact charges, refusals before sending, every failure outcome, disconnects, concurrency, history |
 | `test_ai_gateway.py` | 10 | Time limits, crashed requests, both real SDKs behind the gateway, estimates, conversations |
 | `test_ai_admin.py` | 14 | Models, prices and rates: enabling rules, immutable verified prices, audit |
+| `test_reference_rates.py` | 23 | The ECB rate: reading and refusing answers, versioning, outages, implausible jumps, hand-set rates, start-up, admin status |
 | `test_analytics.py` | 12 | Day / week / month periods in Lisbon time across summer time; agreement with history and ledger |
 | `unit/test_pricing.py` | 32 | Costs per category, long-prompt tier, worst case ≥ actual (generated inputs), rounding |
 | `test_auth_api.py` | 35 | Registration, login, rotation, theft detection, logout, password change |
@@ -256,6 +260,7 @@ Principles:
 - **Properties, not only examples.** The reward formula is also checked with generated
   inputs (Hypothesis): never above a cap, never negative, order-independent, and a
   duplicated workout never adds minutes.
+- **No test uses the network.** The ECB's answer is served from memory too.
 - **No test calls an AI provider.** Providers are scripted fakes (`tests/ai_support.py`)
   or the real SDKs over an in-memory HTTP transport (`tests/provider_fixtures.py`). No
   test needs a key, reaches a provider or costs anything.

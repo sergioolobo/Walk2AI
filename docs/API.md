@@ -480,15 +480,24 @@ Every route requires `role = admin`. Every write is recorded in `audit_log`.
 | POST | `/admin/model-pricing` *(added)* | Publish a price version from now or later; the version in force ends where it starts. `verified: true` requires `source_url` (https). |
 | PUT | `/admin/model-pricing/{id}` | Correct an unverified (or not yet effective) version, or mark it verified. A verified version in force can never change (`409`): publish a new one. |
 | GET / POST | `/admin/exchange-rates` *(added)* | View and add conversion-rate versions, e.g. `{"base_currency": "USD", "quote_currency": "EUR", "rate": "0.92"}`. A rate starts now or later; requests already charged keep theirs. |
+| GET | `/admin/exchange-rates/status` *(added)* | Where the USD→EUR rate comes from (`ecb` or `manual`), the rate in force, its source and age, and what the last refresh did |
+| POST | `/admin/exchange-rates/refresh` *(added)* | Fetch the ECB's latest reference rate now and apply it if it is newer. Answers `updated`, `unchanged`, `kept_manual`, `rejected` or `unavailable` with an explanation |
 
 ### Making a model available
 
 ```text
 1. Put the provider's API key in the server's environment (ANTHROPIC_API_KEY / OPENAI_API_KEY) and restart.
-2. POST /admin/exchange-rates        {"base_currency":"USD","quote_currency":"EUR","rate":"0.905","source":"ECB 2026-11-13"}
+2. (automatic) the USD→EUR rate is fetched from the ECB at start-up; GET /admin/exchange-rates/status shows it
 3. POST /admin/models/{id}/check     → available: true
 4. PUT  /admin/models/{id}           {"enabled": true}
 ```
+
+**The USD→EUR rate** follows the European Central Bank's daily euro reference rate
+(`EXCHANGE_RATE_SOURCE=ecb`, the default): fetched at start-up and every three hours, a
+new publication becomes a new rate version. If the ECB cannot be reached, or publishes a
+figure more than 10% away from its previous one, nothing changes and the status says so.
+A rate set by hand (`POST /admin/exchange-rates`) holds until the ECB publishes a rate
+for that day or later; with `EXCHANGE_RATE_SOURCE=manual` only hand-set rates are used.
 
 Prices are per million tokens in the provider's currency. Each request records the
 price version and both conversion rates it was charged at, so a later price change never

@@ -17,6 +17,9 @@ dependencies = [
     "tzdata>=2025.1",
     "anthropic>=2.8,<3",
     "openai>=3.50,<4",
+    # Already installed by both provider SDKs; named here because the ECB reference-rate
+    # fetcher uses it directly.
+    "httpx2>=2.16,<3",
 ]
 
 [dependency-groups]

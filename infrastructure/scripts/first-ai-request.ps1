@@ -4,7 +4,8 @@
 
 .DESCRIPTION
   1. Inicia sessão como administrador.
-  2. Define a taxa USD->EUR com a taxa de referência do BCE de hoje (ou 0.905 se o BCE
+  2. Confirma que há uma taxa USD->EUR em vigor (o backend segue a taxa de referência
+     diária do BCE); se não houver, pede-lhe que a vá buscar (ou usa 0.905 se o BCE
      não responder).
   3. Confirma junto de cada fornecedor configurado que a sua chave tem acesso ao modelo
      mais barato (gratuito) e ativa-o.
@@ -20,7 +21,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Invariant = [Globalization.CultureInfo]::InvariantCulture
 $Session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $Models = @("claude-haiku-5-5", "gpt-6-luna")   # o mais barato de cada fornecedor
 
@@ -73,30 +73,26 @@ if ($me.role -ne "admin") { throw "Esta conta não é de administrador." }
 Write-Host "Sessão iniciada como $($me.email)."
 
 # ------------------------------------------------------------------ 2. taxa USD->EUR
+# O backend segue a taxa de referência diária do BCE sozinho. Aqui só se confirma que
+# existe uma em vigor; se não existir, pede-se ao backend que a vá buscar agora.
 Write-Step "Taxa de câmbio USD -> EUR"
-$rate = $null
-$source = $null
-try {
-    $csv = Invoke-WebRequest -UseBasicParsing -Uri "https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A?lastNObservations=1&format=csvdata"
-    $row = ($csv.Content | ConvertFrom-Csv)[0]
-    $usdPerEur = [decimal]::Parse($row.OBS_VALUE, $Invariant)
-    $rate = [math]::Round([decimal]1 / $usdPerEur, 6)
-    $source = "BCE $($row.TIME_PERIOD): 1 EUR = $($row.OBS_VALUE) USD"
-} catch {
-    $rate = [decimal]"0.905"
-    $source = "manual (BCE indisponível)"
-    Write-Host "Não foi possível ler a taxa do BCE; uso 0.905." -ForegroundColor Yellow
+function Get-UsdRate {
+    return @(Get-List "/admin/exchange-rates" |
+        Where-Object { $_.base_currency -eq "USD" -and $_.quote_currency -eq "EUR" -and $null -eq $_.effective_until })
 }
-$rateText = $rate.ToString("0.######", $Invariant)
-$current = @(Get-List "/admin/exchange-rates" |
-    Where-Object { $_.base_currency -eq "USD" -and $_.quote_currency -eq "EUR" -and $null -eq $_.effective_until })
-if ($current.Count -gt 0 -and ([decimal]::Parse($current[0].rate, $Invariant) -eq $rate)) {
-    Write-Host "Já em vigor: 1 USD = $rateText EUR."
-} else {
+$current = @(Get-UsdRate)
+if ($current.Count -eq 0) {
+    $refresh = Invoke-Api POST "/admin/exchange-rates/refresh"
+    Write-Host $refresh.detail
+    $current = @(Get-UsdRate)
+}
+if ($current.Count -eq 0) {
     Invoke-Api POST "/admin/exchange-rates" @{
-        base_currency = "USD"; quote_currency = "EUR"; rate = $rateText; source = $source
+        base_currency = "USD"; quote_currency = "EUR"; rate = "0.905"; source = "manual (BCE indisponível)"
     } | Out-Null
-    Write-Host "Definida: 1 USD = $rateText EUR ($source)."
+    Write-Host "BCE indisponível: definida à mão 1 USD = 0.905 EUR." -ForegroundColor Yellow
+} else {
+    Write-Host "Em vigor: 1 USD = $($current[0].rate) EUR ($($current[0].source))."
 }
 
 # ------------------------------------------------------------------ 3. modelos

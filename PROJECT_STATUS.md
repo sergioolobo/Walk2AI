@@ -4,8 +4,10 @@ _Last updated: 2026-11-15_
 
 ## Current phase
 
-**Phase 3 — AI gateway: complete, awaiting your review.**
-Next: Phase 4 — the web application.
+**Phase 3 — AI gateway: complete and confirmed against both live providers.**
+**Phase 4 — the web application: starting, design-first (D-53).** Stage 4a (Mobbin
+research) and 4b (Figma design system and main screens) come before any frontend code;
+implementation waits for your review of the designs.
 
 ## Phases
 
@@ -14,8 +16,8 @@ Next: Phase 4 — the web application.
 | 0 — Architecture and repository preparation | Done; approved 2026-11-13 |
 | 1 — Backend foundation and wallet | Done |
 | 2 — Fitness ingestion, reward engine, spending limits | Done; you approved continuing on 2026-11-15 |
-| 3 — AI gateway | **Done; awaiting review** — first real request to each provider succeeded on 2026-11-15 |
-| 4 — Frontend | Not started |
+| 3 — AI gateway | Done — first real request to each provider succeeded on 2026-11-15; automatic ECB rate added |
+| 4 — Frontend | **In progress: 4a research → 4b design → your review → 4c implementation** |
 | Before 5 — iOS feasibility investigation (no Mac, no purchases) | Not started |
 | 5 — iOS and HealthKit | Not started |
 | 6 — Production deployment | Not started |
@@ -43,6 +45,7 @@ Everything in this table runs, and is covered by automated tests.
 | **Analytics** | Activity, rewards, AI usage (per model, with averages) and credit flows by day, week or month in Lisbon time; a dashboard summary |
 | Administration | Wallet adjustments, reconciliation, audit log, reward rules, workout types, recalculation, models, prices, exchange rates |
 | Platform | Typed settings with production safety checks, problem+json errors, request ids, JSON logs, rate limiting, CSRF origin check, probes, graceful shutdown that settles requests in progress |
+| **Automatic USD→EUR rate** | The ECB's daily reference rate, fetched at start-up and every three hours; versioned; outages and implausible figures leave the last rate in force; a hand-set rate holds until the ECB's next publication; status and refresh-now for the administrator |
 | Quality | Ruff, mypy (strict), CI on GitHub Actions |
 
 Not implemented yet: the web interface (Phase 4) and the iOS companion (Phase 5). Until
@@ -53,11 +56,12 @@ activity can only be test activity.
 
 | Check | Result |
 |---|---|
-| Automated tests | **635 passed**, 0 failed, 0 skipped (~75 s); 130 added in Phase 3 |
+| Automated tests | **658 passed**, 0 failed, 0 skipped (~77 s); 153 added in Phase 3 |
+| ECB rate, live | `refresh-rates` run against the real ECB service: applied 2026-11-13's rate (1 USD = 0.90481361 EUR); a second run reported nothing new |
 | No real provider calls | Every AI test uses a scripted fake or the real SDKs over an in-memory transport. Nothing was sent to OpenAI or Anthropic; nothing was spent |
 | Timing-sensitive AI tests repeated 10× | Stable (disconnect, concurrency, deletion mid-answer, shutdown, time limits, crash) |
 | Ruff lint and format | Clean |
-| mypy (strict), 117 source files incl. tests | Clean |
+| mypy (strict), 119 source files incl. tests | Clean |
 | Docker image | Rebuilt with both SDKs; runs as a non-root user; the Compose stack applies migration 0002, seeds the catalogue and serves all 51 routes |
 | Real-process smoke test | The server under Uvicorn, against a local fake Anthropic API over real sockets: answers streamed progressively; exact charge; a disconnect mid-answer still finished and was charged on the server; a SIGTERM mid-answer let it finish and settle before exit; the ledger reconciled |
 
@@ -104,7 +108,7 @@ To use the AI (each step only with your go-ahead):
 |---|---|
 | Anthropic API key — dedicated workspace, small prepaid balance, auto-reload off | `ANTHROPIC_API_KEY` in `.env` only |
 | OpenAI API key — dedicated project, small prepaid balance, auto-recharge off | `OPENAI_API_KEY` in `.env` only |
-| USD→EUR rate | Automatic from the ECB (approved, being built next); until then `POST /admin/exchange-rates` by hand |
+| USD→EUR rate | Automatic from the ECB — nothing to configure |
 | Model check and enabling | `POST /admin/models/{id}/check` (free), then `PUT /admin/models/{id}` `{"enabled": true}` |
 | A decision on the iOS build route | Before Phase 5 |
 | DigitalOcean account, droplet, domain | Phase 6; paid; only with your approval |
@@ -115,10 +119,10 @@ USD 0.00002 in total). Nothing deployed, no other paid service.
 
 ## Next actions
 
-1. **You:** review Phase 3. Pull request #1 holds Phases 0–3.
-2. **You (when ready):** create the provider accounts with a small prepaid balance and
-   auto-recharge off, and put the keys in your `.env`. Then, with your approval, one
-   real request per provider on the cheapest model (a fraction of a cent each).
-3. **Me:** the automatic daily USD→EUR rate from the ECB (approved).
-4. **Me, on your go-ahead:** Phase 4 — the web application (dashboard, chat with
-   streaming and per-message cost, activity, wallet, analytics, settings, admin).
+1. **Me:** Phase 4a — design research with the Mobbin connector.
+2. **Me:** Phase 4b — design system and main screens in Figma, documented in
+   `docs/design/`.
+3. **You:** review the visual direction and main screens. No frontend code before that.
+4. **Me, after your approval:** Phase 4c — implementation.
+5. **You (on your machine):** `git pull` and `docker compose up -d --build` to get the
+   automatic ECB rate.

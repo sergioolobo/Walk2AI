@@ -173,6 +173,10 @@
   after generation began, the worst case is charged (D-44).
 - Prompts and responses are stored only in your own database. OpenAI requests are sent
   with `store: false`. Provider requests carry no user identifier.
+- Besides the two providers, the backend contacts one outside service: the European
+  Central Bank's public data API, to read the USD/EUR reference rate. Nothing about you
+  or your usage is sent — it is a plain download of a public figure — and a wrong or
+  missing answer cannot move the rate by more than 10% or stop a request.
 - Message content is never written to logs or to the audit trail. Provider error text is
   replaced by a fixed, plain message before it reaches the user.
 

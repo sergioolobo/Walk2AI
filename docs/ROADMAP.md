@@ -100,19 +100,45 @@ Goal: both providers behind one interface, every request reserved, costed and re
 - [x] **(you approve)** One real request per provider on the cheapest model — both
       succeeded on 2026-11-15, charged exactly
 
-Result: 635 automated tests passing (130 new); a smoke test ran the real server against a
+Result: 658 automated tests passing (153 new); a smoke test ran the real server against a
 local fake provider over real sockets: progressive streaming, exact charge, a disconnect
 mid-answer (finished and charged on the server), and a shutdown mid-answer (finished and
 settled before exit); the ledger reconciled afterwards.
 
-Still open from this phase: the automatic daily USD→EUR rate from the ECB (approved;
-D-46).
+Added after the review: the USD→EUR rate now follows the ECB's daily reference rate
+automatically (D-46), verified against the live ECB service. Nothing is open from this
+phase.
 
-## Phase 4 — Frontend
+## Phase 4 — Frontend — next (design first)
 
-Goal: the product, in a browser, on real data.
+Goal: the product, in a browser, on real data — designed before it is coded (D-53).
+The interface must make one thing obvious at a glance: activity done → credits earned →
+balance available → AI consumed → allowance left.
 
-- [ ] Next.js project, Tailwind, shadcn/ui, API types generated from the OpenAPI schema
+**4a — Research (Mobbin)**
+
+- [ ] References for: fintech dashboards; wallets, balances and transaction histories;
+      AI chat and model selection; fitness and activity tracking; usage analytics and
+      data visualisation; settings and account management
+- [ ] Analysis of navigation, layout, information hierarchy, interaction and visual
+      consistency — as inspiration for a distinct Walk2AI identity, not to copy
+
+**4b — Design system and screens (Figma)**
+
+- [ ] Colour palette and semantic tokens; typography; spacing
+- [ ] Navigation and sidebar; cards, buttons, forms and other reusable components
+- [ ] Chart and data-visualisation standards
+- [ ] Responsive layouts: desktop, tablet, mobile
+- [ ] Loading, empty, error and success states
+- [ ] Main screens: Dashboard, AI Chat, Activity, Wallet, Usage Analytics, Settings
+- [ ] Design system documented in the repository (`docs/design/`)
+- [ ] **(you)** Review and approve the visual direction and main screens — nothing is
+      implemented before this
+
+**4c — Implementation (Next.js, React, TypeScript, Tailwind, shadcn/ui, Recharts)**
+
+- [ ] Project set-up; design tokens as Tailwind theme; API types generated from the
+      OpenAPI schema
 - [ ] Authenticated shell, navigation, responsive layout, light and dark themes
 - [ ] Login and first-run registration
 - [ ] Dashboard
@@ -124,11 +150,16 @@ Goal: the product, in a browser, on real data.
 - [ ] Settings: profile, timezone, spending limits, devices, pairing, data deletion
 - [ ] Admin: reward rules, models, prices, exchange rates
 - [ ] Empty, loading and error states everywhere
-- [ ] Component tests; Playwright flows
+- [ ] Component tests; Playwright flows; accessibility checks
 - [ ] Frontend Dockerfile; added to compose
 
-Accepted when: every figure on every screen comes from the backend; the main flows pass
-in Playwright; the layout works on phone, tablet and desktop.
+Constraints: the backend architecture and API contracts are not bent for visual
+convenience; no financial calculation or wallet logic is touched by frontend work; no
+unnecessary dependencies; no paid tool or subscription without your approval.
+
+Accepted when: every figure on every screen comes from the backend; the screens match
+the approved Figma designs; the main flows pass in Playwright; the layout works on
+phone, tablet and desktop.
 
 ## Before Phase 5 — feasibility investigation
 

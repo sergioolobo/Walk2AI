@@ -326,12 +326,21 @@ price; nothing lets a provider substitute a different model.
 ### D-46 · The USD→EUR rate follows the ECB's daily reference rate — **Approved** (2026-11-15)
 
 No rate is invented or seeded. You chose an automatic daily rate: the European Central
-Bank's euro reference rate (free, no account, published each working day around 16:00
-CET). *To be built next:* a daily fetch that adds a new rate version; if the ECB cannot
-be reached, the last rate stays in force and the admin view shows how old it is. A rate
-set by hand (`POST /admin/exchange-rates`) keeps working. Until a rate exists,
-USD-priced models are listed as unusable (`no_exchange_rate`). Each request stores the
-rate it was charged at.
+Bank's euro reference rate (free, public, no account; published each working day around
+16:00 CET). The backend fetches it at start-up and every three hours, outside any
+request, and stores a new publication as a new rate version (`1 / USD-per-EUR`, rounded
+up at the eighth decimal so a converted cost is never understated).
+
+- If the ECB cannot be reached or its answer cannot be read, the rate in force stays in
+  force; `GET /admin/exchange-rates/status` shows the rate's age and the last outcome.
+- A figure outside 0.5–2.5 USD per EUR is discarded; a move of more than 10% from the
+  previous ECB rate is not applied unattended (set it by hand if it is right).
+- A rate set by hand holds until the ECB publishes a rate for that day or later.
+  `EXCHANGE_RATE_SOURCE=manual` turns the automation off.
+- Until a rate exists, USD-priced models are unusable (`no_exchange_rate`). Each request
+  stores the rate it was charged at.
+
+This adds no dependency: `httpx2` was already installed by both provider SDKs.
 
 ### D-47 · Prices are seeded only from the provider's own page
 
@@ -377,6 +386,30 @@ HealthKit reports every quantity as a double (`8423.0` steps, `6120.38291204` me
 Distances and energy are rounded half-to-even to 0.01; steps and durations are rounded
 down to whole numbers; negative, non-finite and non-numeric values are rejected.
 Rejecting the whole batch over a trailing `.0` would have made real syncs fail.
+
+### D-53 · Phase 4 is design-first: research, then Figma, then code — **Approved** (2026-11-15)
+
+Your instruction. The frontend is not coded straight away:
+
+1. **Research** with the Mobbin connector — fintech dashboards, wallets and transaction
+   histories, AI chat and model selection, fitness tracking, usage analytics, settings —
+   analysed for navigation, layout, hierarchy, interaction and consistency. Inspiration
+   only: Walk2AI gets its own identity, nothing is copied.
+2. **Design system and main screens** with the Figma connector — colour and semantic
+   tokens, typography, spacing, navigation, components, chart standards, responsive
+   layouts, and loading / empty / error / success states. The aim is a polished, premium
+   fintech / AI product, not a generic admin dashboard.
+3. **Your review** of the visual direction and main screens. Nothing is implemented
+   before it.
+4. **Implementation** on the approved stack (Next.js, React, TypeScript, Tailwind,
+   shadcn/ui, Recharts) with the approved Figma designs as the visual source of truth.
+
+The design must make the chain *activity → credits earned → balance → AI consumed →
+allowance left* immediately understandable, with one visual language across Dashboard,
+AI Chat, Activity, Wallet, Usage Analytics and Settings. The backend architecture, API
+contracts, financial calculations and wallet logic are not changed for visual
+convenience; no unnecessary dependencies; no paid tools or subscriptions without your
+approval; the design system is documented in the repository and reusable.
 
 ---
 

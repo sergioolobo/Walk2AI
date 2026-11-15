@@ -2,6 +2,7 @@
 
 python -m app.cli seed                 insert missing initial configuration
 python -m app.cli reconcile            verify balances against the ledger
+python -m app.cli refresh-rates        fetch the ECB's USD/EUR reference rate and apply it
 python -m app.cli expire-reservations  release holds past their expiry and flag the AI
                                        requests they belonged to
 """
@@ -18,6 +19,7 @@ from app.core.config import get_settings
 from app.core.db import build_engine, build_session_factory
 from app.seeds import seed_initial_configuration
 from app.services.ai.maintenance import mark_abandoned_requests
+from app.services.ai.reference_rates import EcbRateFetcher, refresh_usd_eur_rate
 from app.services.wallet import WalletService
 from app.services.wallet.maintenance import expire_stale_reservations
 
@@ -58,10 +60,21 @@ async def _expire(session_factory: async_sessionmaker[AsyncSession]) -> int:
     return 0
 
 
+async def _refresh_rates(session_factory: async_sessionmaker[AsyncSession]) -> int:
+    fetcher = EcbRateFetcher()
+    try:
+        result = await refresh_usd_eur_rate(session_factory, SystemClock(), fetcher)
+    finally:
+        await fetcher.aclose()
+    print(f"refresh-rates: {result.outcome.value} - {result.detail}")
+    return 0 if result.ok else 1
+
+
 COMMANDS: dict[str, Command] = {
     "seed": _seed,
     "reconcile": _reconcile,
     "expire-reservations": _expire,
+    "refresh-rates": _refresh_rates,
 }
 
 

@@ -299,6 +299,30 @@ class RateCreate(RequestModel):
     source: Annotated[str, StringConstraints(min_length=1, max_length=200)] = "manual"
 
 
+class RateInForce(ResponseModel):
+    rate: DecimalString
+    source: str
+    effective_from: datetime
+    age_hours: int = Field(description="How long this rate has been in force.")
+
+
+class RateRefreshResponse(ResponseModel):
+    outcome: Literal["updated", "unchanged", "kept_manual", "rejected", "unavailable"]
+    detail: str
+    at: datetime
+
+
+class RateStatusResponse(ResponseModel):
+    mode: Literal["ecb", "manual"] = Field(
+        description="ecb: USD->EUR follows the ECB's daily reference rate automatically."
+    )
+    refresh_minutes: int
+    usd_eur: RateInForce | None = Field(description="Null: no USD->EUR rate exists yet.")
+    last_refresh: RateRefreshResponse | None = Field(
+        description="The last automatic or requested refresh since the server started."
+    )
+
+
 class RateResponse(ResponseModel):
     id: uuid.UUID
     base_currency: str

@@ -121,7 +121,7 @@ it opens its own short transactions (reserve; settle) around the provider call.
 |---|---|---|
 | Walk Credits (WC) | integer | Internal unit. All balances and ledger amounts. |
 | EUR→WC rate | versioned decimal | Initially `10000` (1,000 WC = €0.10, so 1 WC = €0.0001). |
-| USD→EUR rate | versioned decimal | Admin-configured; converts provider billing to EUR. |
+| USD→EUR rate | versioned decimal | The ECB's daily reference rate, fetched automatically (or set by hand); converts provider billing to EUR. |
 | Provider cost | `NUMERIC(18,8)` | Actual cost of a request in the provider's currency (USD). |
 
 Rounding rules — fixed, documented, tested:
@@ -520,7 +520,6 @@ Versions verified on 2026-11-13 are listed in [DEVELOPMENT.md](DEVELOPMENT.md#to
 
 - Multiple users with separate provider keys, teams, sharing.
 - Tool use, file uploads, image input, web search (each adds billable categories).
-- Automatic exchange-rate feeds (the rate is an admin setting; a feed can be added later).
 - Push notifications; spending alerts are in-app first.
 - Android / Health Connect.
 - Any automatic purchase of provider credit — permanently out of scope.

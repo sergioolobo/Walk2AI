@@ -27,6 +27,7 @@ from app.core.config import Settings
 from app.main import BACKEND_ROOT, create_app
 from app.models import Base
 from app.services.ai.gateway import wait_for_inflight
+from app.services.ai.reference_rates import ReferenceRate, ReferenceRateUnavailable
 from tests.ai_support import FakeProvider, FakeProviders
 from tests.support import MutableClock
 
@@ -85,6 +86,9 @@ def settings(database_url: sa.URL) -> Settings:
         public_origin="http://testserver",
         cookie_secure=False,
         registration_mode="first_user_only",
+        # Rates never come from the network in tests: a test that wants the ECB
+        # refresher injects its own source.
+        exchange_rate_source="manual",
         # Cheapest valid Argon2 parameters: the suite hashes hundreds of passwords.
         argon2_time_cost=1,
         argon2_memory_cost_kib=8,
@@ -97,11 +101,16 @@ def clock() -> MutableClock:
     return MutableClock()
 
 
+async def no_network_rates() -> ReferenceRate:
+    """The default rate source in tests: there is no ECB here."""
+    raise ReferenceRateUnavailable("Tests never contact the ECB.")
+
+
 @pytest.fixture(scope="session")
 async def app(
     settings: Settings, clock: MutableClock, migrated_database: None
 ) -> AsyncIterator[FastAPI]:
-    application = create_app(settings, clock=clock)
+    application = create_app(settings, clock=clock, rate_fetcher=no_network_rates)
     yield application
     await application.state.engine.dispose()
 
@@ -169,7 +178,12 @@ def make_app(settings: Settings, clock: MutableClock, db: None) -> AppFactory:
 
     @asynccontextmanager
     async def factory(**overrides: object) -> AsyncIterator[FastAPI]:
-        application = create_app(settings.model_copy(update=overrides), clock=clock)
+        fetcher = overrides.pop("rate_fetcher", no_network_rates)
+        application = create_app(
+            settings.model_copy(update=overrides),
+            clock=clock,
+            rate_fetcher=fetcher,  # type: ignore[arg-type]
+        )
         try:
             yield application
         finally:

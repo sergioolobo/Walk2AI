@@ -6,11 +6,19 @@ price in force (and the conversion rates it needs exist).
 """
 
 import uuid
+from datetime import timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from app.api.deps import AdminDep, ClockDep, RequestMetaDep, SessionDep, require_admin
+from app.api.deps import (
+    AdminDep,
+    ClockDep,
+    RequestMetaDep,
+    SessionDep,
+    SettingsDep,
+    require_admin,
+)
 from app.core.errors import Conflict
 from app.models.ai import AIModel, ExchangeRate, ModelPricing
 from app.models.enums import ActorType
@@ -24,11 +32,20 @@ from app.schemas.ai import (
     PriceResponse,
     PriceUpdate,
     RateCreate,
+    RateInForce,
+    RateRefreshResponse,
     RateResponse,
+    RateStatusResponse,
 )
 from app.services.ai import catalogue
 from app.services.ai.catalogue import CatalogueAdmin, PriceInput
 from app.services.ai.providers import ProviderAdapter, ProviderFailure
+from app.services.ai.reference_rates import (
+    BASE_CURRENCY,
+    QUOTE_CURRENCY,
+    RefreshResult,
+    refresh_usd_eur_rate,
+)
 from app.services.audit import record_audit
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -340,3 +357,51 @@ async def create_rate(
     )
     await session.commit()
     return row
+
+
+def _refresh_response(result: RefreshResult) -> RateRefreshResponse:
+    return RateRefreshResponse(outcome=result.outcome.value, detail=result.detail, at=result.at)
+
+
+@router.get("/exchange-rates/status", response_model=RateStatusResponse)
+async def rate_status(
+    request: Request, session: SessionDep, settings: SettingsDep, clock: ClockDep
+) -> RateStatusResponse:
+    """Where the USD→EUR rate comes from, the rate in force and how old it is, and what
+    the last refresh did. If the ECB cannot be reached the last rate simply stays in
+    force — this is where that shows."""
+    now = clock.now()
+    current = await catalogue.rate_in_force(session, BASE_CURRENCY, QUOTE_CURRENCY, now)
+    last: RefreshResult | None = request.app.state.rate_refresh.last
+    return RateStatusResponse(
+        mode=settings.exchange_rate_source,
+        refresh_minutes=settings.exchange_rate_refresh_minutes,
+        usd_eur=(
+            RateInForce(
+                rate=current.rate,
+                source=current.source,
+                effective_from=current.effective_from,
+                age_hours=(now - current.effective_from) // timedelta(hours=1),
+            )
+            if current is not None
+            else None
+        ),
+        last_refresh=_refresh_response(last) if last is not None else None,
+    )
+
+
+@router.post("/exchange-rates/refresh", response_model=RateRefreshResponse)
+async def refresh_rate(
+    request: Request, admin: AdminDep, clock: ClockDep, meta: RequestMetaDep
+) -> RateRefreshResponse:
+    """Fetch the ECB's latest USD/EUR reference rate now and apply it if it is newer.
+    Works in either mode. Free: the ECB's data is public."""
+    result = await refresh_usd_eur_rate(
+        request.app.state.session_factory,
+        clock,
+        request.app.state.rate_fetcher,
+        state=request.app.state.rate_refresh,
+        actor_user_id=admin.user.id,
+        meta=meta,
+    )
+    return _refresh_response(result)

@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     # Interactive API docs. None = enabled everywhere except production.
     docs_enabled: bool | None = None
 
+    # --- Conversion rates ------------------------------------------------
+    # "ecb": the USD->EUR rate follows the European Central Bank's daily reference rate.
+    # "manual": only an administrator sets it (POST /admin/exchange-rates).
+    exchange_rate_source: Literal["ecb", "manual"] = "ecb"
+    exchange_rate_refresh_minutes: int = Field(default=180, ge=15, le=1440)
+
     # --- Wallet ----------------------------------------------------------
     reservation_sweep_interval_seconds: int = Field(default=60, ge=5)
 
