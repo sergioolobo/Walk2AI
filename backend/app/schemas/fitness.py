@@ -4,19 +4,74 @@ The sync payload has no field for credits, and unknown fields are rejected: ther
 way for a device to tell the server what its activity is worth.
 """
 
+import math
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
-from typing import Annotated, Literal
+from decimal import ROUND_FLOOR, ROUND_HALF_EVEN, Decimal, InvalidOperation
+from typing import Annotated, Any, Literal
 
-from pydantic import AwareDatetime, Field, StringConstraints
+from pydantic import AwareDatetime, BeforeValidator, Field, StringConstraints
 
 from app.schemas.common import RequestModel, ResponseModel
 from app.schemas.wallet import DecimalString
 
+_HUNDREDTH = Decimal("0.01")
+_MAX_QUANTITY = Decimal("100000000")
+
+
+def _as_decimal(value: Any) -> Decimal:
+    """A finite number from JSON (number or numeric string) as an exact Decimal.
+
+    Floats go through their shortest decimal representation, so 6120.38291204 becomes
+    Decimal("6120.38291204"), not the binary expansion of the double.
+    """
+    if isinstance(value, bool):
+        raise ValueError("a number is required")
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("the number must be finite")
+        return Decimal(repr(value))
+    if isinstance(value, int | Decimal):
+        number = Decimal(value)
+    elif isinstance(value, str):
+        try:
+            number = Decimal(value.strip())
+        except InvalidOperation as exc:
+            raise ValueError("a number is required") from exc
+    else:
+        raise ValueError("a number is required")
+    if not number.is_finite():
+        raise ValueError("the number must be finite")
+    return number
+
+
+def _quantity(value: Any) -> Any:
+    """Distances and energy: HealthKit reports doubles with many decimal places. They are
+    display values (credits never depend on them), so they are rounded to 0.01 rather
+    than rejected."""
+    if value is None:
+        return None
+    number = _as_decimal(value)
+    if number < 0:
+        raise ValueError("the value cannot be negative")
+    return number.quantize(_HUNDREDTH, rounding=ROUND_HALF_EVEN)
+
+
+def _whole(value: Any) -> Any:
+    """Counts and durations: HealthKit sums and durations are doubles (8423.0 steps,
+    1920.4532 seconds). Accepted and rounded *down*, so a fraction can never round up
+    into an extra credit."""
+    number = _as_decimal(value)
+    if number < 0:
+        raise ValueError("the value cannot be negative")
+    return int(number.to_integral_value(rounding=ROUND_FLOOR))
+
+
 # Hard structural bounds. Plausibility (how many steps a day can really have) is judged
 # per record by the validation layer, which rejects that record and keeps the rest.
-Quantity = Annotated[Decimal, Field(ge=0, le=Decimal("100000000"), max_digits=12, decimal_places=2)]
+Quantity = Annotated[Decimal, BeforeValidator(_quantity), Field(ge=0, le=_MAX_QUANTITY)]
+WholeSteps = Annotated[int, BeforeValidator(_whole), Field(ge=0, le=10_000_000)]
+WholeSeconds = Annotated[int, BeforeValidator(_whole), Field(ge=0, le=7 * 24 * 3600)]
 ExternalId = Annotated[str, StringConstraints(min_length=1, max_length=128)]
 ShortText = Annotated[str, StringConstraints(min_length=1, max_length=120)]
 
@@ -28,7 +83,7 @@ class DeviceInfo(RequestModel):
 
 class DayIn(RequestModel):
     date: date
-    steps: int = Field(ge=0, le=10_000_000)
+    steps: WholeSteps
     distance_walking_running_m: Quantity | None = None
     distance_cycling_m: Quantity | None = None
     active_energy_kcal: Quantity | None = None
@@ -39,7 +94,7 @@ class WorkoutIn(RequestModel):
     type: Annotated[str, StringConstraints(min_length=1, max_length=100)]
     start: AwareDatetime
     end: AwareDatetime
-    duration_seconds: int = Field(ge=0, le=7 * 24 * 3600)
+    duration_seconds: WholeSeconds
     distance_m: Quantity | None = None
     active_energy_kcal: Quantity | None = None
     origin_bundle_id: ShortText | None = None

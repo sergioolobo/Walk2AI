@@ -143,7 +143,11 @@ with `422`, so a device cannot state or influence what its activity is worth.
 - `type` may be HealthKit's own spelling (`traditionalStrengthTraining`,
   `HKWorkoutActivityTypeCycling`) or snake_case; the server normalises it.
 - `duration_seconds` is active time, excluding pauses. `start` and `end` must carry a
-  UTC offset.
+  UTC offset (`Z` is fine, fractional seconds are fine).
+- Numbers may be sent exactly as HealthKit returns them (doubles). Steps and durations
+  are rounded **down** to whole units, so a fraction can never round up into a credit;
+  distances and energy are rounded to 0.01. Negative, non-finite or non-numeric values
+  are rejected.
 - `days` should be HealthKit *statistics* (already merged across iPhone and Mi Fitness),
   never a sum of raw samples.
 

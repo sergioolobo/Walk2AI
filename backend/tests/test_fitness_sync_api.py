@@ -574,7 +574,7 @@ async def test_implausible_records_are_rejected_without_blocking_the_rest(
     "payload",
     [
         {"days": [{"date": TODAY, "steps": -5}]},
-        {"days": [{"date": TODAY, "steps": 1.5}]},
+        {"days": [{"date": TODAY, "steps": "lots"}]},  # doubles are fine; words are not
         {"days": [{"date": "13/11/2026", "steps": 100}]},
         {"days": [{"date": TODAY}]},
         {"workouts": [{"external_id": "W", "type": "cycling", "start": "2026-11-13T07:00:00",
