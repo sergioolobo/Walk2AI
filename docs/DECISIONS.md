@@ -387,22 +387,32 @@ Distances and energy are rounded half-to-even to 0.01; steps and durations are r
 down to whole numbers; negative, non-finite and non-numeric values are rejected.
 Rejecting the whole batch over a trailing `.0` would have made real syncs fail.
 
-### D-53 · Phase 4 is design-first: research, then Figma, then code — **Approved** (2026-11-15)
+### D-53 · Phase 4 is design-first: research, then design, then code — **Approved** (2026-11-15)
 
 Your instruction. The frontend is not coded straight away:
 
-1. **Research** with the Mobbin connector — fintech dashboards, wallets and transaction
-   histories, AI chat and model selection, fitness tracking, usage analytics, settings —
-   analysed for navigation, layout, hierarchy, interaction and consistency. Inspiration
-   only: Walk2AI gets its own identity, nothing is copied.
-2. **Design system and main screens** with the Figma connector — colour and semantic
-   tokens, typography, spacing, navigation, components, chart standards, responsive
-   layouts, and loading / empty / error / success states. The aim is a polished, premium
-   fintech / AI product, not a generic admin dashboard.
+1. **Research** — fintech dashboards, wallets and transaction histories, AI chat and
+   model selection, fitness tracking, usage analytics, settings — analysed for
+   navigation, layout, hierarchy, interaction and consistency. Inspiration only:
+   Walk2AI gets its own identity, nothing is copied.
+2. **Design system and main screens** — colour and semantic tokens, typography, spacing,
+   navigation, components, chart standards, responsive layouts, and loading / empty /
+   error / success states. The aim is a polished, premium fintech / AI product, not a
+   generic admin dashboard.
 3. **Your review** of the visual direction and main screens. Nothing is implemented
    before it.
 4. **Implementation** on the approved stack (Next.js, React, TypeScript, Tailwind,
-   shadcn/ui, Recharts) with the approved Figma designs as the visual source of truth.
+   shadcn/ui, Recharts) with the approved designs as the visual source of truth.
+
+**Changed the same day — no Mobbin, no Figma, no spending.** The plan was to use the
+Mobbin and Figma connectors. Mobbin's refused to work without a paid plan, and the
+connected Figma account is on a free plan with a view-only seat. You decided: skip
+Mobbin, do not use Figma, spend nothing on anything. The research is therefore written
+from knowledge of established products ([design/RESEARCH.md](design/RESEARCH.md)), and
+the designs are drawn directly as HTML and CSS on a private design canvas
+([design/README.md](design/README.md)). Because the direction is a matter of taste,
+three genuinely different directions are shown for the dashboard first; the full system
+and the remaining screens follow the one you choose.
 
 The design must make the chain *activity → credits earned → balance → AI consumed →
 allowance left* immediately understandable, with one visual language across Dashboard,

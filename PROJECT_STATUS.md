@@ -5,9 +5,10 @@ _Last updated: 2026-11-15_
 ## Current phase
 
 **Phase 3 — AI gateway: complete and confirmed against both live providers.**
-**Phase 4 — the web application: starting, design-first (D-53).** Stage 4a (Mobbin
-research) and 4b (Figma design system and main screens) come before any frontend code;
-implementation waits for your review of the designs.
+**Phase 4 — the web application: design stage, waiting for your choice of visual
+direction.** Research is written up and three directions for the dashboard are drawn
+(`docs/design/`). No Mobbin, no Figma, nothing spent (D-53). No frontend code exists or
+will be written before you have reviewed the designs.
 
 ## Phases
 
@@ -17,7 +18,7 @@ implementation waits for your review of the designs.
 | 1 — Backend foundation and wallet | Done |
 | 2 — Fitness ingestion, reward engine, spending limits | Done; you approved continuing on 2026-11-15 |
 | 3 — AI gateway | Done — first real request to each provider succeeded on 2026-11-15; automatic ECB rate added |
-| 4 — Frontend | **In progress: 4a research → 4b design → your review → 4c implementation** |
+| 4 — Frontend | **Design stage: research done; three visual directions await your choice** |
 | Before 5 — iOS feasibility investigation (no Mac, no purchases) | Not started |
 | 5 — iOS and HealthKit | Not started |
 | 6 — Production deployment | Not started |
@@ -119,10 +120,12 @@ USD 0.00002 in total). Nothing deployed, no other paid service.
 
 ## Next actions
 
-1. **Me:** Phase 4a — design research with the Mobbin connector.
-2. **Me:** Phase 4b — design system and main screens in Figma, documented in
-   `docs/design/`.
-3. **You:** review the visual direction and main screens. No frontend code before that.
+1. **You:** open the design canvas (link in `docs/design/README.md`) and choose a visual
+   direction — A, B, C, or a mix.
+2. **Me:** the design system and the main screens (Dashboard, AI Chat, Activity, Wallet,
+   Usage Analytics, Settings; desktop, tablet and mobile; all states) in that direction,
+   documented in `docs/design/`.
+3. **You:** review the main screens. No frontend code before that.
 4. **Me, after your approval:** Phase 4c — implementation.
 5. **You (on your machine):** `git pull` and `docker compose up -d --build` to get the
    automatic ECB rate.

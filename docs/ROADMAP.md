@@ -115,16 +115,23 @@ Goal: the product, in a browser, on real data — designed before it is coded (D
 The interface must make one thing obvious at a glance: activity done → credits earned →
 balance available → AI consumed → allowance left.
 
-**4a — Research (Mobbin)**
+No Mobbin, no Figma and no spending (your decision, D-53): the research is written from
+knowledge of established products and the designs are drawn directly on a private
+design canvas.
 
-- [ ] References for: fintech dashboards; wallets, balances and transaction histories;
+**4a — Research**
+
+- [x] Patterns for: fintech dashboards; wallets, balances and transaction histories;
       AI chat and model selection; fitness and activity tracking; usage analytics and
       data visualisation; settings and account management
-- [ ] Analysis of navigation, layout, information hierarchy, interaction and visual
-      consistency — as inspiration for a distinct Walk2AI identity, not to copy
+      ([design/RESEARCH.md](design/RESEARCH.md))
+- [x] What each means for a distinct Walk2AI identity — nothing copied
 
-**4b — Design system and screens (Figma)**
+**4b — Design system and screens**
 
+- [x] Three visual directions for the dashboard, same content and sample data
+      ([design/README.md](design/README.md))
+- [ ] **(you)** Choose a direction (or a mix)
 - [ ] Colour palette and semantic tokens; typography; spacing
 - [ ] Navigation and sidebar; cards, buttons, forms and other reusable components
 - [ ] Chart and data-visualisation standards
