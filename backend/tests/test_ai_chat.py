@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.ai import AIModel, AIUsage, ChatMessage, ChatSession
+from app.models.ai import AIModel, AIUsage, ChatMessage, ChatSession, ModelPricing
 from app.models.enums import TransactionType
 from app.models.wallet import WalletReservation, WalletTransaction
 from app.services.ai.pricing import TokenUsage
@@ -23,7 +23,6 @@ from app.services.ai.providers import FailureCode, TextDelta, TurnRole
 from app.services.wallet import WalletService
 from tests.ai_support import (
     HAIKU,
-    LUNA,
     SONNET,
     Fail,
     FakeProviders,
@@ -325,8 +324,6 @@ async def test_a_model_that_cannot_be_used_is_refused_with_the_reason(
     reason: str,
 ) -> None:
     model = HAIKU
-    if setup == "unverified":
-        model = LUNA  # its seeded price could not be verified
     ids = await prepare_catalogue(
         session_factory,
         enable=() if setup == "disabled" else (model,),
@@ -339,6 +336,13 @@ async def test_a_model_that_cannot_be_used_is_refused_with_the_reason(
             )
     if setup == "no_key":
         fresh_app.state.ai_providers.pop("anthropic")
+    if setup == "unverified":
+        async with session_factory() as session, session.begin():
+            await session.execute(
+                update(ModelPricing)
+                .where(ModelPricing.model_id == ids[model])
+                .values(verified=False, verified_at=None)
+            )
 
     response = await send_chat(client, ids[model])
     listed = (await client.get(f"{API}/ai/models")).json()

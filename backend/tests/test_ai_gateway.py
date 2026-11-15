@@ -9,11 +9,11 @@ import httpx
 import httpx2
 import pytest
 from fastapi import FastAPI
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
-from app.models.ai import AIUsage
+from app.models.ai import AIModel, AIUsage, ModelPricing
 from app.models.enums import TransactionType
 from app.models.user import User
 from app.services.ai.gateway import AIGateway, ChatCommand
@@ -26,6 +26,7 @@ from tests.ai_support import (
     HAIKU,
     LUNA,
     RATES_FROM,
+    SONNET,
     FakeProvider,
     FakeProviders,
     Hang,
@@ -253,19 +254,7 @@ async def test_end_to_end_through_the_real_openai_sdk(
     user: uuid.UUID,
 ) -> None:
     """OpenAI reports cached tokens inside input tokens; they are priced at the cached
-    rate, not twice. (The model's price is unverified, so it is verified here.)"""
-    from sqlalchemy import update
-
-    from app.models.ai import ModelPricing
-
-    async with session_factory() as session, session.begin():
-        await session.execute(
-            update(ModelPricing)
-            .where(ModelPricing.model_id == models[LUNA])
-            .values(
-                verified=True, verified_at=RATES_FROM, source_url="https://example.com/test-only"
-            )
-        )
+    rate, not twice."""
 
     def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/v1/responses/input_tokens":
@@ -422,15 +411,30 @@ async def test_providers_report_only_whether_a_key_is_configured(
 
 async def test_the_model_list_shows_usable_models_with_their_prices(
     client: httpx.AsyncClient,
+    session_factory: Sessions,
     fake_providers: FakeProviders,
     models: dict[str, uuid.UUID],
     user: uuid.UUID,
 ) -> None:
+    async with session_factory() as session, session.begin():
+        # Enable Sonnet too, but with its price unverified: it must not be offered.
+        sonnet = await session.scalar(select(AIModel).where(AIModel.model_identifier == SONNET))
+        assert sonnet is not None
+        sonnet.enabled, sonnet.availability_checked_at = True, RATES_FROM
+        await session.execute(
+            update(ModelPricing)
+            .where(ModelPricing.model_id == sonnet.id)
+            .values(verified=False, verified_at=None)
+        )
+
     listed = (await client.get(f"{API}/ai/models")).json()
 
-    # gpt-6-luna is enabled but its price is unverified: it is not offered.
-    assert [m["model"] for m in listed] == [HAIKU]
-    [haiku] = listed
+    assert [m["model"] for m in listed] == [HAIKU, LUNA]
+    haiku, luna = listed
+    assert (luna["prices"]["cache_write"], luna["prices"]["cache_write_1h"]) == (
+        "0.12500000",
+        "0.25000000",
+    )
     assert haiku["prices"]["input"] == "0.10000000"
     assert haiku["prices"]["output"] == "0.50000000"
     assert haiku["prices"]["long_context_threshold"] == 100_000

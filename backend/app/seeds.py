@@ -5,6 +5,7 @@ database row that can be superseded through the admin API without touching code.
 Seeding is idempotent and never overwrites a value that already exists.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -67,6 +68,7 @@ class SeedResult:
     exchange_rates_created: int
     models_created: int = 0
     prices_created: int = 0
+    prices_verified: int = 0  # seeded unverified prices since confirmed and upgraded
 
 
 async def seed_initial_configuration(session: AsyncSession) -> SeedResult:
@@ -113,8 +115,10 @@ async def seed_initial_configuration(session: AsyncSession) -> SeedResult:
         rates_created += 1
 
     await session.flush()
-    models_created, prices_created = await _seed_catalogue(session)
-    return SeedResult(rules_created, types_created, rates_created, models_created, prices_created)
+    models_created, prices_created, prices_verified = await _seed_catalogue(session)
+    return SeedResult(
+        rules_created, types_created, rates_created, models_created, prices_created, prices_verified
+    )
 
 
 # ------------------------------------------------------------------- AI catalogue
@@ -125,12 +129,18 @@ async def seed_initial_configuration(session: AsyncSession) -> SeedResult:
 #
 # Claude prices were read from Anthropic's official pricing page on 2026-11-15:
 #   https://platform.claude.com/docs/en/about-claude/pricing
-# OpenAI's pricing pages could not be reached from the development environment, so the
-# OpenAI price below is UNVERIFIED and the model cannot be enabled until an administrator
-# checks it against https://openai.com/api/pricing/ and marks it verified.
+# OpenAI prices were read from OpenAI's official pricing page on 2026-11-15 (standard
+# tier): https://developers.openai.com/api/docs/pricing
+# OpenAI's usage report does not say which cache lifetime a write used. Walk2AI never asks
+# for extended retention, so writes are the default 30-minute kind ("cache_write_price");
+# the 12-hour price is recorded as the long-lived one.
 
 ANTHROPIC_PRICING_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
-CLAUDE_PRICES_VERIFIED_AT = datetime(2026, 11, 15, 12, 0, tzinfo=UTC)
+OPENAI_PRICING_URL = "https://developers.openai.com/api/docs/pricing"
+PRICES_VERIFIED_AT = datetime(2026, 11, 15, 12, 0, tzinfo=UTC)
+# Notes that marked a seeded price as not yet checked. A row still carrying one, and still
+# unverified, never charged anything (its model was unusable) and may be corrected.
+_UNVERIFIED_SEED_MARKER = "UNVERIFIED:"
 
 D = Decimal
 
@@ -147,6 +157,7 @@ class SeedModel:
     price: dict[str, object]
     verified: bool
     notes: str
+    source_url: str = ANTHROPIC_PRICING_URL
 
 
 INITIAL_MODELS: tuple[SeedModel, ...] = (
@@ -224,22 +235,44 @@ INITIAL_MODELS: tuple[SeedModel, ...] = (
         price={
             "input_price": D("0.10"),
             "cached_input_price": D("0.01"),
+            "cache_write_price": D("0.125"),  # 30-minute cache write
+            "cache_write_1h_price": D("0.25"),  # 12-hour cache write
             "output_price": D("0.50"),
         },
-        verified=False,
-        notes=(
-            "UNVERIFIED: these figures come from third-party price listings seen on "
-            "2026-11-13; openai.com could not be reached from the development environment. "
-            "Check them at https://openai.com/api/pricing/, correct if needed, then mark "
-            "the price verified."
-        ),
+        verified=True,
+        notes="The least expensive current OpenAI model.",
+        source_url=OPENAI_PRICING_URL,
     ),
 )
 
 
-async def _seed_catalogue(session: AsyncSession) -> tuple[int, int]:
+def _verify_seeded_price(model: AIModel, prices: Sequence[ModelPricing], seed: SeedModel) -> int:
+    """Replace a price this seed once left unverified with the verified figures.
+
+    Only the original seeded row qualifies: unverified (so its model was never usable
+    and it never charged anything) and still carrying the seed's marker (so an
+    administrator has not edited it). Anything else is left alone.
+    """
+    if len(prices) != 1:
+        return 0
+    row = prices[0]
+    if row.verified or not (row.notes or "").startswith(_UNVERIFIED_SEED_MARKER):
+        return 0
+    for name, value in seed.price.items():
+        setattr(row, name, value)
+    row.verified = True
+    row.verified_at = PRICES_VERIFIED_AT
+    row.source_url = seed.source_url
+    row.notes = seed.notes or None
+    if (model.notes or "").startswith(_UNVERIFIED_SEED_MARKER):
+        model.notes = seed.notes or None
+    return 1
+
+
+async def _seed_catalogue(session: AsyncSession) -> tuple[int, int, int]:
     models_created = 0
     prices_created = 0
+    prices_verified = 0
     for seed in INITIAL_MODELS:
         model = await session.scalar(
             select(AIModel).where(
@@ -266,22 +299,24 @@ async def _seed_catalogue(session: AsyncSession) -> tuple[int, int]:
             await session.flush()
             models_created += 1
 
-        has_price = await session.scalar(
-            select(ModelPricing.id).where(ModelPricing.model_id == model.id).limit(1)
-        )
-        if has_price is None:
+        prices = (
+            await session.scalars(select(ModelPricing).where(ModelPricing.model_id == model.id))
+        ).all()
+        if not prices:
             session.add(
                 ModelPricing(
                     model_id=model.id,
                     currency="USD",
                     effective_from=INITIAL_EFFECTIVE_INSTANT,
                     verified=seed.verified,
-                    verified_at=CLAUDE_PRICES_VERIFIED_AT if seed.verified else None,
-                    source_url=ANTHROPIC_PRICING_URL if seed.verified else None,
+                    verified_at=PRICES_VERIFIED_AT if seed.verified else None,
+                    source_url=seed.source_url if seed.verified else None,
                     notes=seed.notes or None,
                     **seed.price,
                 )
             )
             prices_created += 1
+        elif seed.verified:
+            prices_verified += _verify_seeded_price(model, prices, seed)
     await session.flush()
-    return models_created, prices_created
+    return models_created, prices_created, prices_verified

@@ -386,10 +386,8 @@ exist. Each unmet condition is reported as a reason. Capability flags
 carry; the current Claude models reject sampling parameters, so temperature is offered
 per model, not globally.
 
-Seeded (all **disabled**): Claude Haiku 5.5, Sonnet 5.5 and Opus 5.5 with prices verified
-on the provider's page on 2026-11-15; and `gpt-6-luna` with an **unverified** price
-(OpenAI's pricing page could not be reached from the build environment), which keeps it
-unusable until an administrator verifies it.
+Seeded (all **disabled**): Claude Haiku 5.5, Sonnet 5.5 and Opus 5.5, and OpenAI's
+`gpt-6-luna`, with prices verified on each provider's own pricing page on 2026-11-15.
 
 ## 9. Spending controls
 

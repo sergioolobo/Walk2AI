@@ -323,20 +323,26 @@ stores every cache price and the pricing engine charges them, so enabling it lat
 small change. Every request names one exact model id and is priced at that model's
 price; nothing lets a provider substitute a different model.
 
-### D-46 · The USD→EUR rate is set by hand (default; awaiting your confirmation)
+### D-46 · The USD→EUR rate follows the ECB's daily reference rate — **Approved** (2026-11-15)
 
-No rate is invented or seeded. Until an administrator sets one
-(`POST /admin/exchange-rates`), USD-priced models are listed as unusable with the reason
-`no_exchange_rate`. Each request stores the rate it was charged at. An automatic daily
-reference rate remains possible (open question 2).
+No rate is invented or seeded. You chose an automatic daily rate: the European Central
+Bank's euro reference rate (free, no account, published each working day around 16:00
+CET). *To be built next:* a daily fetch that adds a new rate version; if the ECB cannot
+be reached, the last rate stays in force and the admin view shows how old it is. A rate
+set by hand (`POST /admin/exchange-rates`) keeps working. Until a rate exists,
+USD-priced models are listed as unusable (`no_exchange_rate`). Each request stores the
+rate it was charged at.
 
-### D-47 · Prices are seeded only from a page that could be read
+### D-47 · Prices are seeded only from the provider's own page
 
-The three Claude 5.5 prices were read from Anthropic's pricing page on 2026-11-15 and
-seeded as verified, with that page as their source. OpenAI's pages could not be reached
-from the build environment, so `gpt-6-luna` is seeded with figures from third-party
-listings marked **unverified**: the model stays unusable until an administrator checks
-OpenAI's page and verifies (or corrects) the price. All seeded models start disabled.
+The three Claude 5.5 prices were read from Anthropic's pricing page and `gpt-6-luna`'s
+from OpenAI's (standard tier: input $0.10, cached input $0.01, 30-minute cache write
+$0.125, 12-hour cache write $0.25, output $0.50 per million tokens), both on 2026-11-15,
+and are seeded as verified with those pages as their source. OpenAI's page was at first
+unreachable from the build environment; a database seeded then holds an unverified
+`gpt-6-luna` price, which the seed upgrades in place on the next start (only while it is
+still unverified and unedited — it never charged anything). All seeded models start
+disabled.
 
 ### D-48 · A verified price in force can never be edited
 
@@ -380,13 +386,8 @@ Nothing blocks Phase 4 development. These are needed along the way:
 
 1. **Workout type labels** (Phase 5) — how your workouts are labelled in Apple Health.
    Until confirmed, an unexpected label earns nothing (your decision of 2026-11-15).
-2. **USD→EUR rate policy** — a rate you set by hand (in force by default, D-46), or a
-   daily official reference rate fetched automatically.
-3. **Provider accounts and the first real request** — OpenAI and Anthropic API accounts
+2. **Provider accounts and the first real request** — OpenAI and Anthropic API accounts
    with a small prepaid balance and auto-recharge off; your keys go only in the server's
    `.env`. With your approval, one real request per provider (cost: a fraction of a
    cent) confirms the integration end to end.
-4. **OpenAI's price** — OpenAI's site could not be reached from the build environment.
-   Either allow `openai.com` and `platform.openai.com` for this environment so it can be
-   checked, or read the price for the chosen model on OpenAI's pricing page yourself.
-5. **Default spending limits** (optional) — none are set today (D-39).
+3. **Default spending limits** (optional) — none are set today (D-39).

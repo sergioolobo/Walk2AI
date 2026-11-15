@@ -485,7 +485,7 @@ Every route requires `role = admin`. Every write is recorded in `audit_log`.
 
 ```text
 1. Put the provider's API key in the server's environment (ANTHROPIC_API_KEY / OPENAI_API_KEY) and restart.
-2. POST /admin/exchange-rates        {"base_currency":"USD","quote_currency":"EUR","rate":"0.92","source":"ECB 2026-11-15"}
+2. POST /admin/exchange-rates        {"base_currency":"USD","quote_currency":"EUR","rate":"0.905","source":"ECB 2026-11-13"}
 3. POST /admin/models/{id}/check     → available: true
 4. PUT  /admin/models/{id}           {"enabled": true}
 ```

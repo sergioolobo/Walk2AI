@@ -159,7 +159,7 @@ backend/
 │       ├── ai/            pricing, catalogue, gateway, conversations, providers/
 │       └── analytics/     dashboard aggregations
 ├── migrations/            Alembic; versions/0001_initial_schema.py, 0002_…
-└── tests/                 633 tests
+└── tests/                 635 tests
 frontend/                  (Phase 4)
 mobile/                    (Phase 5)
 infrastructure/
@@ -218,7 +218,7 @@ pushes to `main`.
 | `test_fitness_views_and_test_data.py` | 11 | Read views, sync status, labelled test activity |
 | `test_reward_rules.py` | 16 | Rule administration; rate changes never alter days already begun; workout types |
 | `test_schema_integrity.py` | 36 | Guarantees the database enforces on its own, exercised with raw SQL |
-| `test_migrations.py` | 7 | Upgrade / downgrade / re-upgrade; models match schema; seed data and catalogue |
+| `test_migrations.py` | 9 | Upgrade / downgrade / re-upgrade; models match schema; seed data and catalogue |
 | `test_fitness_realistic_payloads.py` | 9 | A HealthKit-shaped week through the device route: doubles, rolling resends, duplicates from two apps |
 | `test_ai_providers.py` | 30 | The real Anthropic and OpenAI SDKs against recorded-shape HTTP: streaming, usage, every error class |
 | `test_ai_chat.py` | 25 | The gateway end to end: exact charges, refusals before sending, every failure outcome, disconnects, concurrency, history |
@@ -296,7 +296,6 @@ Principles:
 |---|---|
 | No macOS, Xcode or Swift toolchain | The iOS companion cannot be compiled here (and you have no Mac): see [DECISIONS.md](DECISIONS.md), D-07. |
 | No provider API keys | The provider integrations are tested against mocks; one real request per provider needs your keys and your approval. |
-| `openai.com` is not reachable from this environment | OpenAI's prices could not be read here; `gpt-6-luna`'s price is seeded unverified (D-47). |
 | Internet access through a TLS-inspecting proxy | Image builds here need the proxy flags shown above. On an ordinary machine `docker compose up --build` needs nothing extra. |
 
 ## Definition of done, per phase

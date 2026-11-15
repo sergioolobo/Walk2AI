@@ -53,7 +53,7 @@ activity can only be test activity.
 
 | Check | Result |
 |---|---|
-| Automated tests | **633 passed**, 0 failed, 0 skipped (~75 s); 128 added in Phase 3 |
+| Automated tests | **635 passed**, 0 failed, 0 skipped (~75 s); 130 added in Phase 3 |
 | No real provider calls | Every AI test uses a scripted fake or the real SDKs over an in-memory transport. Nothing was sent to OpenAI or Anthropic; nothing was spent |
 | Timing-sensitive AI tests repeated 10× | Stable (disconnect, concurrency, deletion mid-answer, shutdown, time limits, crash) |
 | Ruff lint and format | Clean |
@@ -76,7 +76,7 @@ catalogue administration 14 · analytics 12 · gateway internals and both SDKs e
 | L7 | Workout type labels from your watch are unconfirmed. | Unknown types earn nothing (your decision). | Phase 5 |
 | L8 | Real activity cannot arrive until the iOS companion exists. | Test activity only. | Phase 5 |
 | L9 | No web interface yet. | The API works through `/api/v1/docs`. | Phase 4 |
-| **L10** | **OpenAI's website could not be reached from this environment** (`openai.com`, `platform.openai.com`). | `gpt-6-luna` is seeded with an **unverified** price taken from third-party listings, so it cannot be used until an administrator verifies or corrects it. Anthropic's prices were verified on its own page. | Needs you (see below) |
+| L10 | OpenAI's website was at first unreachable from this environment. | Closed: you allowed it; `gpt-6-luna`'s price is now verified on OpenAI's page (with its cache-write prices). An existing database is upgraded on its next start. | Closed |
 | L11 | No real request has been sent to either provider. | The SDK integrations are tested against the providers' documented wire formats, not yet against the live services. | Needs your keys and approval |
 | L12 | No automatic reconciliation with the providers' own usage reports. | Requests with an uncertain outcome are marked `unknown` for a manual comparison. Automating it would need an admin-scoped provider key, which Walk2AI deliberately does not hold. | By design for now |
 | L13 | A closed browser does not cancel an answer (D-43). | You pay for an answer you stopped watching, at most its reserved worst case; the answer is kept. | By design |
@@ -104,9 +104,8 @@ To use the AI (each step only with your go-ahead):
 |---|---|
 | Anthropic API key — dedicated workspace, small prepaid balance, auto-reload off | `ANTHROPIC_API_KEY` in `.env` only |
 | OpenAI API key — dedicated project, small prepaid balance, auto-recharge off | `OPENAI_API_KEY` in `.env` only |
-| USD→EUR rate | `POST /admin/exchange-rates` (by hand, D-46) — none is invented |
+| USD→EUR rate | Automatic from the ECB (approved, being built next); until then `POST /admin/exchange-rates` by hand |
 | Model check and enabling | `POST /admin/models/{id}/check` (free), then `PUT /admin/models/{id}` `{"enabled": true}` |
-| OpenAI price | Verify `gpt-6-luna`'s price on OpenAI's page (`PUT /admin/model-pricing/{id}` with `verified` and `source_url`), or allow those hosts for this environment so I can |
 | A decision on the iOS build route | Before Phase 5 |
 | DigitalOcean account, droplet, domain | Phase 6; paid; only with your approval |
 
@@ -119,8 +118,6 @@ no request sent to an AI provider.
 2. **You (when ready):** create the provider accounts with a small prepaid balance and
    auto-recharge off, and put the keys in your `.env`. Then, with your approval, one
    real request per provider on the cheapest model (a fraction of a cent each).
-3. **You:** confirm the USD→EUR policy (by hand is in force), and either allow
-   `openai.com` / `platform.openai.com` for this environment or verify OpenAI's price
-   yourself.
+3. **Me:** the automatic daily USD→EUR rate from the ECB (approved).
 4. **Me, on your go-ahead:** Phase 4 — the web application (dashboard, chat with
    streaming and per-message cost, activity, wallet, analytics, settings, admin).

@@ -249,8 +249,8 @@ async def test_seed_does_not_overwrite_changed_configuration(session_factory: Se
 async def test_seeded_models_start_disabled_and_only_cited_prices_are_verified(
     session_factory: Sessions,
 ) -> None:
-    """Nothing is offered to users until an administrator enables it; no currency rate
-    to EUR is invented (the administrator sets it)."""
+    """Nothing is offered to users until an administrator enables it; every seeded price
+    cites its provider's page; no currency rate to EUR is invented."""
     async with session_factory() as session, session.begin():
         await seed_initial_configuration(session)
     async with session_factory() as session:
@@ -271,9 +271,68 @@ async def test_seeded_models_start_disabled_and_only_cited_prices_are_verified(
         "claude-haiku-5-5": (False, True),
         "claude-opus-5-5": (False, True),
         "claude-sonnet-5-5": (False, True),
-        "gpt-6-luna": (False, False),
+        "gpt-6-luna": (False, True),
     }
     assert all(m.source_url and m.source_url.startswith("https://") for m in models if m.verified)
     haiku = next(m for m in models if m.model_identifier == "claude-haiku-5-5")
     assert (haiku.input_price, haiku.output_price) == (Decimal("0.10"), Decimal("0.50"))
     assert usd == 0
+
+
+@pytest.mark.anyio
+async def test_seed_verifies_a_price_it_once_left_unverified(session_factory: Sessions) -> None:
+    """Databases seeded before OpenAI's price could be checked carry it unverified. The
+    seed upgrades that row in place — once, and only while nobody has edited it."""
+    async with session_factory() as session, session.begin():
+        await seed_initial_configuration(session)
+        await session.execute(
+            sa.text(
+                "UPDATE model_pricing SET verified = false, verified_at = NULL, "
+                "source_url = NULL, cache_write_price = NULL, cache_write_1h_price = NULL, "
+                "notes = 'UNVERIFIED: third-party listings' FROM ai_models m "
+                "WHERE m.id = model_pricing.model_id AND m.model_identifier = 'gpt-6-luna'"
+            )
+        )
+    async with session_factory() as session, session.begin():
+        upgraded = await seed_initial_configuration(session)
+    async with session_factory() as session, session.begin():
+        again = await seed_initial_configuration(session)
+        row = (
+            await session.execute(
+                sa.text(
+                    "SELECT p.verified, p.source_url, p.cache_write_price, "
+                    "p.cache_write_1h_price, p.notes FROM model_pricing p "
+                    "JOIN ai_models m ON m.id = p.model_id WHERE m.model_identifier = 'gpt-6-luna'"
+                )
+            )
+        ).one()
+
+    assert (upgraded.prices_verified, again.prices_verified) == (1, 0)
+    assert row.verified is True
+    assert row.source_url == "https://developers.openai.com/api/docs/pricing"
+    assert (row.cache_write_price, row.cache_write_1h_price) == (Decimal("0.125"), Decimal("0.25"))
+    assert not (row.notes or "").startswith("UNVERIFIED")
+
+
+@pytest.mark.anyio
+async def test_seed_leaves_an_administrators_unverified_price_alone(
+    session_factory: Sessions,
+) -> None:
+    async with session_factory() as session, session.begin():
+        await seed_initial_configuration(session)
+        await session.execute(
+            sa.text(
+                "UPDATE model_pricing SET verified = false, verified_at = NULL, "
+                "input_price = 0.3, notes = 'my own figure' FROM ai_models m "
+                "WHERE m.id = model_pricing.model_id AND m.model_identifier = 'gpt-6-luna'"
+            )
+        )
+    async with session_factory() as session, session.begin():
+        result = await seed_initial_configuration(session)
+        input_price = await session.scalar(
+            sa.text(
+                "SELECT p.input_price FROM model_pricing p JOIN ai_models m "
+                "ON m.id = p.model_id WHERE m.model_identifier = 'gpt-6-luna'"
+            )
+        )
+    assert result.prices_verified == 0 and input_price == Decimal("0.3")

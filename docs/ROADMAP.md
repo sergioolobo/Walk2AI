@@ -80,8 +80,7 @@ Goal: both providers behind one interface, every request reserved, costed and re
 
 - [ ] **(you)** Create provider accounts, prepaid balance, auto-recharge off, API keys
 - [x] Verify current models and prices from the providers' official pages; record sources
-      — Anthropic verified 2026-11-15; **OpenAI's site was unreachable from this
-      environment**, so its price is seeded unverified (D-47)
+      — both verified on the providers' own pages on 2026-11-15 (D-47)
 - [ ] **(you)** Confirm each model is available to your API account
       (`POST /admin/models/{id}/check`, free, needs your key)
 - [x] Provider adapter interface; OpenAI adapter (Responses API); Anthropic adapter
@@ -101,13 +100,13 @@ Goal: both providers behind one interface, every request reserved, costed and re
       errors, insufficient credits, timeouts, concurrency, disconnects
 - [ ] **(you approve)** One real request per provider on the cheapest model
 
-Result: 633 automated tests passing (128 new); a smoke test ran the real server against a
+Result: 635 automated tests passing (130 new); a smoke test ran the real server against a
 local fake provider over real sockets: progressive streaming, exact charge, a disconnect
 mid-answer (finished and charged on the server), and a shutdown mid-answer (finished and
 settled before exit); the ledger reconciled afterwards.
 
 Still open from this phase: your keys and approval for one real request per provider,
-and a verified OpenAI price ([DECISIONS.md](DECISIONS.md#open-questions-for-you)).
+and the automatic daily USD→EUR rate from the ECB (approved; D-46).
 
 ## Phase 4 — Frontend
 

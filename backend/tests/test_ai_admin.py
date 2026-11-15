@@ -269,5 +269,5 @@ async def test_the_admin_list_explains_every_model(
     listed = {m["model_identifier"]: m for m in (await admin.get(f"{API}/admin/models")).json()}
 
     assert set(listed) == {HAIKU, "claude-sonnet-5-5", "claude-opus-5-5", LUNA}
-    assert "price_unverified" in listed[LUNA]["unavailable_reasons"]
+    assert listed[LUNA]["unavailable_reasons"] == ["disabled", "availability_not_checked"]
     assert listed[HAIKU]["unavailable_reasons"] == ["disabled", "availability_not_checked"]

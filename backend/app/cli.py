@@ -32,6 +32,7 @@ async def _seed(session_factory: async_sessionmaker[AsyncSession]) -> int:
         f"{result.workout_types_created} workout type(s), "
         f"{result.exchange_rates_created} conversion rate(s), "
         f"{result.models_created} AI model(s), {result.prices_created} price(s) created"
+        + (f"; {result.prices_verified} price(s) now verified" if result.prices_verified else "")
     )
     return 0
 
