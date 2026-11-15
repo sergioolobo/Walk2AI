@@ -58,7 +58,7 @@ Standalone log: `audit_log`.
 ## Tables
 
 Twenty-one tables. Twelve are the ones named in the specification; nine are additions,
-each justified below. The AI tables exist now but are only written to from Phase 3.
+each justified below. Migration `0002` adds a sequence number to `chat_messages`.
 
 ### Identity and access
 
@@ -126,8 +126,8 @@ Transaction shapes enforced by `ck_wallet_tx_shape`:
 | `model_pricing` | Versioned prices per million tokens | Spec columns plus cache-write prices, an optional long-prompt tier, `extra_prices`, `effective_until`, `verified`, `verified_at`, `source_url`. A verified row must cite its source. Overlapping ranges per model are rejected. |
 | `exchange_rates` *(added)* | Versioned conversion rates | `USD→EUR` for provider billing and `EUR→WC` (10000) for the credit economy, in one table with one mechanism. |
 | `chat_sessions` | Conversations | Spec columns plus `model_id`. |
-| `chat_messages` | Messages | Spec columns plus `status` and a link to the usage record that produced an assistant message. |
-| `ai_usage` | Financial record of every provider call | Spec columns plus `request_id`, `reservation_id`, `pricing_id`, cache-write and reasoning tokens, estimate, currency, both rates used, EUR cost, `cost_basis`, provider request id, error fields. |
+| `chat_messages` | Messages | Spec columns plus `status` (`complete`, `partial` — an answer cut off —, `error` — a question that got no answer), a link to the usage record that produced an assistant message, and `seq`, a strictly increasing position (migration `0002`) that orders messages exactly. |
+| `ai_usage` | Financial record of every provider call | Spec columns plus `request_id`, `reservation_id`, `pricing_id`, cache-write and reasoning tokens, estimate, currency, both rates used, EUR cost, `cost_basis`, provider request id, error fields. Created `pending` in the same transaction as the reservation, before the provider is called; settled to `succeeded`, `failed`, `timeout`, `cancelled` or `unknown`. The ledger's `AI_USAGE` row points at it (`reference_id`). |
 
 Deleting a conversation removes its messages but **not** its usage records
 (`ai_usage.session_id` is set to `NULL`). Content is the user's to delete; the financial

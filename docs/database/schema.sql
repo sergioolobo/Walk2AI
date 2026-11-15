@@ -221,8 +221,22 @@ CREATE TABLE public.chat_messages (
     status text DEFAULT 'complete'::text NOT NULL,
     usage_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    seq bigint NOT NULL,
     CONSTRAINT ck_chat_messages_role CHECK ((role = ANY (ARRAY['system'::text, 'user'::text, 'assistant'::text]))),
     CONSTRAINT ck_chat_messages_status CHECK ((status = ANY (ARRAY['complete'::text, 'partial'::text, 'error'::text])))
+);
+
+--
+-- Name: chat_messages_seq_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.chat_messages ALTER COLUMN seq ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.chat_messages_seq_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 --
@@ -864,10 +878,10 @@ CREATE INDEX ix_auth_sessions_family_id ON public.auth_sessions USING btree (fam
 CREATE INDEX ix_auth_sessions_user_id ON public.auth_sessions USING btree (user_id);
 
 --
--- Name: ix_chat_messages_session_created; Type: INDEX; Schema: public; Owner: -
+-- Name: ix_chat_messages_session_seq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ix_chat_messages_session_created ON public.chat_messages USING btree (session_id, created_at);
+CREATE INDEX ix_chat_messages_session_seq ON public.chat_messages USING btree (session_id, seq);
 
 --
 -- Name: ix_chat_sessions_user_updated; Type: INDEX; Schema: public; Owner: -

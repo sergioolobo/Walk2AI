@@ -1,19 +1,18 @@
 # Walk2AI — Backend API
 
-> Status: **Authentication, devices, wallet, fitness, reward rules and health are
-> implemented** (Phases 1–2). AI, analytics and the model/pricing administration are
-> Phase 3. For what is implemented, the generated OpenAPI document at
-> `/api/v1/openapi.json` (interactive at `/api/v1/docs`) is authoritative; this file is
-> the guide to it and the contract for what is not yet built.
+> Status: **every group below is implemented** (Phases 1–3). The generated OpenAPI
+> document at `/api/v1/openapi.json` (interactive at `/api/v1/docs`) is authoritative for
+> field-level detail; this file is the guide to it.
 >
 > | Group | State |
 > |---|---|
 > | Authentication, account, devices | Implemented |
 > | Fitness (sync, views, exclusion, deletion) | Implemented |
 > | Wallet (read) and spending limits | Implemented |
-> | Administration | Wallet adjustments, reconciliation, audit log, reward rules, workout types, recalculation implemented; models, pricing and exchange rates in Phase 3 |
+> | AI gateway, conversations | Implemented (Phase 3) |
+> | Analytics | Implemented (Phase 3) |
+> | Administration | Implemented, including models, prices and conversion rates (Phase 3) |
 > | Operational | Implemented |
-> | AI, Analytics | Phase 3 |
 
 ## Conventions
 
@@ -328,37 +327,49 @@ only as a side effect of a sync, an AI request, or an admin adjustment.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/ai/providers` | session | Providers and whether each is configured (key present, reachable). |
-| GET | `/ai/models` | session | Usable models: enabled, available to this account, with a verified price. Includes capability flags and prices. |
-| POST | `/ai/estimate` *(added)* | session | Cost estimate for a prospective message, without sending it. |
-| POST | `/ai/chat` | session | Send a message; JSON or streamed response. |
-| GET | `/ai/sessions` | session | Conversation list. |
-| POST | `/ai/sessions` *(added)* | session | Create a conversation. |
-| GET | `/ai/sessions/{id}` | session | A conversation with its messages and per-message usage. |
-| PATCH | `/ai/sessions/{id}` *(added)* | session | Rename; change model. |
-| DELETE | `/ai/sessions/{id}` | session | Delete a conversation and its messages (usage records are kept). |
+| GET | `/ai/providers` | session | Each provider and whether an API key is configured on the server. Keys are never shown. |
+| GET | `/ai/models` | session | Models usable right now, with their verified prices (per million tokens) and limits. |
+| POST | `/ai/estimate` *(added)* | session | The most a message can cost, and whether it would be allowed. Reserves nothing. |
+| POST | `/ai/chat` | session | Send a message; streamed (default) or one JSON response. 30 per minute. |
+| GET | `/ai/sessions` | session | Conversations, most recently active first; `?limit=&offset=`. |
+| POST | `/ai/sessions` *(added)* | session | Create an empty conversation. |
+| GET | `/ai/sessions/{id}` | session | A conversation with its messages; each answer carries its tokens, cost and credits. |
+| PATCH | `/ai/sessions/{id}` *(added)* | session | Rename; change the model used from now on. |
+| DELETE | `/ai/sessions/{id}` | session | Delete a conversation and its messages. Cost records stay (without content). |
+
+A model is offered only when it is **enabled**, its **availability was confirmed** with
+the provider, the provider's **key is configured**, it has a **verified price in force**,
+and the **conversion rates** it needs exist (its currency → EUR, and EUR → WC). Otherwise
+`/ai/chat` and `/ai/estimate` answer `409 model_unavailable` with `reasons`, e.g.
+`["disabled", "price_unverified"]`.
 
 ### `POST /ai/estimate`
 
 ```json
-{ "session_id": "…", "model_id": "…", "message": "…", "max_output_tokens": 1024 }
+{ "session_id": null, "model_id": "…", "message": "…", "max_output_tokens": 1024 }
 ```
 
 ```json
 {
-  "input_tokens": 1840,
+  "input_tokens": 37,
   "input_tokens_basis": "provider_count",
-  "max_output_tokens": 1024,
-  "worst_case": { "cost": "0.00069600", "currency": "USD", "cost_eur": "0.00064032", "credits_wc": 7 },
-  "available_wc": 3300,
+  "max_output_tokens": 2048,
+  "worst_case": { "cost": "0.00103140", "currency": "USD", "cost_eur": "0.00094889", "credits_wc": 10 },
+  "available_wc": 500,
   "can_afford": true,
-  "limits": { "request_ok": true, "daily_ok": true, "monthly_ok": true }
+  "limit_refusal": null,
+  "limit_detail": null
 }
 ```
 
-`input_tokens_basis` is `provider_count` when the provider's token-counting endpoint was
-used and `local_estimate` (with a safety margin) otherwise. The UI labels estimates as
-estimates; the charge shown after a request is the actual cost.
+The **worst case** is what is reserved: the whole prompt (including the conversation's
+history) priced at the dearest input rate the model has, plus `max_output_tokens` priced
+as output. The charge afterwards is the actual cost — usually far less.
+`input_tokens_basis` is `provider_count` when the provider's counting endpoint answered,
+and `local_upper_bound` otherwise (UTF-8 bytes plus framing: a tokeniser never produces
+more tokens than that, so the reservation is still safe). `limit_refusal` names the
+spending limit that would refuse the request (`per_request`, `daily`, `monthly`,
+`min_balance`).
 
 ### `POST /ai/chat`
 
@@ -370,38 +381,80 @@ estimates; the charge shown after a request is the actual cost.
   "message": "…",
   "max_output_tokens": 1024,
   "temperature": null,
+  "reasoning_effort": null,
   "stream": true
 }
 ```
 
-`temperature` is accepted only for models whose catalogue entry has
-`supports_temperature = true`; otherwise it must be `null`.
+| Field | Rule |
+|---|---|
+| `request_id` | Chosen by the client; a second request with the same id is refused (`409 duplicate_request`). Retry with the same id is therefore safe: it can never be charged twice. |
+| `max_output_tokens` | Default 2,048; at most the smaller of the server limit (8,192) and the model's. |
+| `temperature` | Only for models with `supports_temperature` (none of the current Claude models). |
+| `reasoning_effort` | `low` / `medium` / `high`, only for models with `supports_reasoning_effort`. |
+| `message` | 1–32,000 characters. The last 20 complete messages of the conversation are sent with it. |
 
 With `"stream": true` the response is `text/event-stream`:
 
 | Event | Data | When |
 |---|---|---|
-| `start` | `request_id`, `session_id`, `reserved_wc`, `estimate` | After the reservation succeeds, before the provider is called |
-| `delta` | `text` | Each chunk of the answer |
-| `usage` | tokens by category, `provider_cost`, `currency`, `cost_eur`, `charged_wc`, `released_wc`, `cost_basis`, `wallet` | After settlement |
-| `error` | `code`, `detail`, `charged_wc`, `released_wc` | On failure, after the reservation has been settled or released |
+| `start` | `request_id`, `session_id`, `provider`, `model`, `reserved_wc`, `estimate` | After the reservation is committed, before the provider is called |
+| `delta` | `text` | Each piece of the answer |
+| `usage` | `status`, `stop_reason`, `tokens` (`input`, `cached_input`, `cache_write`, `output`, `reasoning`), `provider_cost`, `currency`, `cost_eur`, `charged_wc`, `released_wc`, `cost_basis`, `duration_ms`, `message_id`, `wallet`, `spending` | After a successful answer is settled |
+| `error` | `status`, `code`, `detail`, `charged_wc`, `released_wc`, `cost_basis`, `message_id`, `wallet`, `spending` | After a failed request is settled |
 | `done` | — | Always last |
 
-A refusal for lack of credits or a limit is a plain `402` JSON response — the stream never
-starts, and nothing is sent to the provider. With `"stream": false` the same information
-arrives as one JSON object.
+With `"stream": false` the response is one JSON object: `start`, `text`, `outcome`
+(`usage` or `error`) and `result` (that event's data).
+
+**Refusals happen before anything is sent to a provider** and are plain JSON errors:
+
+| Status | `code` | Meaning |
+|---|---|---|
+| 402 | `insufficient_credits` | The worst case exceeds the available balance |
+| 402 | `spending_limit_exceeded` | A spending limit would be exceeded (`limit` names it) |
+| 404 | `not_found` | The conversation does not exist or is not yours |
+| 409 | `duplicate_request` | `request_id` already used |
+| 409 | `model_unavailable` | See `reasons` |
+| 422 | `conversation_too_long` | History + message + `max_output_tokens` exceed the model's context window |
+| 422 | `validation_error` | E.g. `temperature` for a model that does not accept it |
+| 429 | `rate_limited` | More than 30 messages per minute |
+| 502 | `provider_error` | The provider rejected the server's key, or the model is not available to the account (`provider_code`) |
+
+**What a request costs when it does not go to plan** (`cost_basis` says which applied):
+
+| What happened | Charged | `status` |
+|---|---|---|
+| Answer completed (including a refusal or a cut-off at `max_output_tokens`) | The reported usage, exactly | `succeeded` |
+| Provider failed but reported its usage | That usage, exactly | `failed` |
+| Provider refused the request before generating (rate limit, overload, …) | Nothing | `failed` |
+| Generation began, then the stream broke or timed out without usage | The reserved worst case | `failed` / `timeout` |
+| Timed out before anything arrived | Nothing — flagged for reconciliation | `unknown` |
+| The server was shut down mid-answer (after a 20 s grace period) | The worst case if generation had begun, else nothing | `cancelled` |
+
+**A closed browser does not cancel a request.** The request runs on the server, is
+charged exactly, and the full answer appears in the conversation. (An abandoned answer
+is still billed by the provider; stopping it half-way would leave its cost unknown.)
+
+Every charge is a minimum of 1 WC; amounts are rounded up to whole credits.
 
 ## Analytics
 
-All accept `?from=&to=` (dates, user's timezone) and `?granularity=day|week|month`.
+All take `?from=&to=` (dates in the user's timezone; default: a period ending today)
+and `?granularity=day|week|month` (weeks start on Monday). Every period in the range is
+returned, empty ones included; the first and last are clipped to the range. The range is
+at most 731 days.
 
-| Method | Path | Returns |
+| Method | Path | Returns per period |
 |---|---|---|
-| GET | `/analytics/activity` | Steps, distances, workout minutes per period |
-| GET | `/analytics/rewards` | Credits earned per period, split steps / workouts; cap hits |
-| GET | `/analytics/ai-usage` | Requests, tokens (input / output / cached / reasoning) per period, per provider, per model |
-| GET | `/analytics/spending` | Provider cost, EUR, credits per period, per provider, per model; averages per request and per 1,000 tokens; earned vs spent |
-| GET | `/analytics/dashboard` *(added)* | The dashboard's figures in one round trip |
+| GET | `/analytics/activity` | `steps`, `eligible_minutes`, `distance_m` (walking + running), `active_energy_kcal`, `active_days`, `test_data` |
+| GET | `/analytics/rewards` | `step_wc`, `workout_wc`, `earned_wc` (after the daily cap), `capped_days` |
+| GET | `/analytics/ai-usage` | `requests`, `failed`, tokens by kind, `cost_eur`, `credits_wc`, `cost_eur_per_request`, `cost_eur_per_1k_tokens` — per period, per model (`by_model`) and in total |
+| GET | `/analytics/spending` | `earned_wc`, `spent_wc`, `adjustments_wc`, `net_wc` from the ledger, plus today's and this month's totals and limit usage (`summary`) |
+| GET | `/analytics/dashboard` *(added)* | Wallet, today, the last 7 days, this month's AI usage, limits — one round trip |
+
+AI usage is grouped by the day the request was made in the user's timezone (23:30 UTC
+on a July evening is the next day in Lisbon). Requests still in progress are not counted.
 
 ## Administration
 
@@ -409,24 +462,37 @@ Every route requires `role = admin`. Every write is recorded in `audit_log`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/admin/wallet/adjustments` *(added)* | **Implemented.** `ADMIN_ADJUSTMENT`: signed `amount_wc`, mandatory `reason`, optional `idempotency_key`. Cannot overdraw (`402`). |
-| GET | `/admin/wallet/reconcile` *(added)* | **Implemented.** Verify balances equal ledger sums; list discrepancies. Read-only. |
-| GET | `/admin/audit-log` *(added)* | **Implemented.** Newest first; `?limit=`, `?cursor=`, `?action=`. |
-| GET | `/admin/reward-rules` | **Implemented.** All rule versions, each with `state`: `scheduled`, `in_force` or `ended` |
-| POST | `/admin/reward-rules` | **Implemented.** Schedule a rule version; the rule currently open for that activity ends on the day the new one starts |
-| PUT | `/admin/reward-rules/{id}` | **Implemented.** A scheduled rule can be edited freely; one in force can only be given an end date |
-| DELETE | `/admin/reward-rules/{id}` *(added)* | **Implemented.** Withdraw a scheduled rule; the rule it would have succeeded carries on |
-| GET | `/admin/workout-types` *(added)* | **Implemented.** How each workout type is treated |
-| PUT | `/admin/workout-types/{type}` *(added)* | **Implemented.** Classify a type as `step_based`, `non_step` or `excluded` |
-| POST | `/admin/rewards/recalculate` *(added)* | **Implemented.** Re-evaluate a user's days (at most 62) under the same rules a sync follows |
-| GET | `/admin/models` *(added)* | Full catalogue including disabled models |
-| POST | `/admin/models` *(added)* | Add a model (disabled until verified) |
-| PUT | `/admin/models/{id}` *(added)* | Edit flags, enable or disable |
-| POST | `/admin/models/{id}/check` *(added)* | Confirm availability against the provider with the configured key |
-| GET | `/admin/model-pricing` | All price versions |
-| POST | `/admin/model-pricing` *(added)* | Add a price version (closes the current one) |
-| PUT | `/admin/model-pricing/{id}` | Edit an unverified or not-yet-effective row; mark verified with a source URL |
-| GET / POST | `/admin/exchange-rates` *(added)* | View and add conversion-rate versions *(Phase 3)* |
+| POST | `/admin/wallet/adjustments` *(added)* | `ADMIN_ADJUSTMENT`: signed `amount_wc`, mandatory `reason`, optional `idempotency_key`. Cannot overdraw (`402`). |
+| GET | `/admin/wallet/reconcile` *(added)* | Verify balances equal ledger sums; list discrepancies. Read-only. |
+| GET | `/admin/audit-log` *(added)* | Newest first; `?limit=`, `?cursor=`, `?action=`. |
+| GET | `/admin/reward-rules` | All rule versions, each with `state`: `scheduled`, `in_force` or `ended` |
+| POST | `/admin/reward-rules` | Schedule a rule version; the rule currently open for that activity ends on the day the new one starts |
+| PUT | `/admin/reward-rules/{id}` | A scheduled rule can be edited freely; one in force can only be given an end date |
+| DELETE | `/admin/reward-rules/{id}` *(added)* | Withdraw a scheduled rule; the rule it would have succeeded carries on |
+| GET | `/admin/workout-types` *(added)* | How each workout type is treated |
+| PUT | `/admin/workout-types/{type}` *(added)* | Classify a type as `step_based`, `non_step` or `excluded` |
+| POST | `/admin/rewards/recalculate` *(added)* | Re-evaluate a user's days (at most 62) under the same rules a sync follows |
+| GET | `/admin/models` *(added)* | Every model, with `usable` and `unavailable_reasons` |
+| POST | `/admin/models` *(added)* | Add a model. It starts disabled. |
+| PUT | `/admin/models/{id}` *(added)* | Edit flags; enable (needs a successful check and a verified price in force) or disable |
+| POST | `/admin/models/{id}/check` *(added)* | Ask the provider whether the configured key can use the model (reads model metadata: generates nothing, costs nothing). A model found unavailable is disabled. |
+| GET | `/admin/model-pricing` | Every price version; `?model_id=` |
+| POST | `/admin/model-pricing` *(added)* | Publish a price version from now or later; the version in force ends where it starts. `verified: true` requires `source_url` (https). |
+| PUT | `/admin/model-pricing/{id}` | Correct an unverified (or not yet effective) version, or mark it verified. A verified version in force can never change (`409`): publish a new one. |
+| GET / POST | `/admin/exchange-rates` *(added)* | View and add conversion-rate versions, e.g. `{"base_currency": "USD", "quote_currency": "EUR", "rate": "0.92"}`. A rate starts now or later; requests already charged keep theirs. |
+
+### Making a model available
+
+```text
+1. Put the provider's API key in the server's environment (ANTHROPIC_API_KEY / OPENAI_API_KEY) and restart.
+2. POST /admin/exchange-rates        {"base_currency":"USD","quote_currency":"EUR","rate":"0.92","source":"ECB 2026-11-15"}
+3. POST /admin/models/{id}/check     → available: true
+4. PUT  /admin/models/{id}           {"enabled": true}
+```
+
+Prices are per million tokens in the provider's currency. Each request records the
+price version and both conversion rates it was charged at, so a later price change never
+alters what an earlier request cost.
 
 ### Changing reward rules
 

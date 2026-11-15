@@ -1,11 +1,11 @@
 # Walk2AI — Project Status
 
-_Last updated: 2026-11-14_
+_Last updated: 2026-11-15_
 
 ## Current phase
 
-**Phase 2 — Fitness ingestion and reward engine: complete, awaiting your review.**
-Next: Phase 3 — the AI gateway.
+**Phase 3 — AI gateway: complete, awaiting your review.**
+Next: Phase 4 — the web application.
 
 ## Phases
 
@@ -13,8 +13,8 @@ Next: Phase 3 — the AI gateway.
 |---|---|
 | 0 — Architecture and repository preparation | Done; approved 2026-11-13 |
 | 1 — Backend foundation and wallet | Done |
-| 2 — Fitness ingestion, reward engine, spending limits | **Done; awaiting review** |
-| 3 — AI gateway | Not started |
+| 2 — Fitness ingestion, reward engine, spending limits | Done; you approved continuing on 2026-11-15 |
+| 3 — AI gateway | **Done; awaiting review** — the first real request per provider awaits your keys and approval |
 | 4 — Frontend | Not started |
 | Before 5 — iOS feasibility investigation (no Mac, no purchases) | Not started |
 | 5 — iOS and HealthKit | Not started |
@@ -26,101 +26,101 @@ Everything in this table runs, and is covered by automated tests.
 
 | Area | What works |
 |---|---|
-| Stack | `docker compose up --build` starts PostgreSQL, applies migrations, seeds configuration and serves the API on `localhost:8000` |
+| Stack | `docker compose up --build` starts PostgreSQL, applies migrations, seeds configuration and the model catalogue, and serves the API on `localhost:8000` |
 | Accounts and sessions | Registration (first account becomes admin, then closed), Argon2id passwords, HttpOnly cookies, rotating refresh tokens, theft detection, server-side logout |
 | Device pairing | One-time pairing codes; device tokens limited to `fitness:sync`; revocation |
 | Wallet | Reward, reversal, reserve, settle, release, expire, adjust — one service, row-locked, on an append-only ledger with idempotency keys |
-| **Fitness sync** | A paired device uploads daily totals and workouts; idempotent on a batch id; each record validated for plausibility; days and workouts upserted; deletions handled |
-| **Reward engine** | `min(1500, 0.1 × steps + 5 × workout minutes)` per local day, under that day's rules; pays only the difference from what the day was already paid |
-| **No double rewards** | Replayed batches, re-sent days, duplicated or overlapping workouts and simultaneous syncs pay nothing extra; walking, running and hiking earn through steps only |
-| **Late and revised data** | Paid under its own day's cap within a 7-day window; a downward revision does not claw back; older data is stored, not paid |
-| **Exclusion and deletion** | Excluding a rewarded workout reverses its credits (never below zero); deleting fitness data keeps credits and cannot be used to earn twice |
-| **Reward rules** | Versioned by activity date; a change can only start on a day that has not begun; rules in force cannot be rewritten; workout types classifiable |
-| **Spending limits** | Optional per-request, daily, monthly and minimum-balance limits, enforced when credits are reserved, in the user's timezone |
-| **Test activity** | Administrator-only route, off by default, forbidden in production, labelled in every row and ledger entry |
-| Views | Wallet balance, history, summary with limit usage; fitness daily, history and workouts with the reason each does or does not earn |
-| Administration | Audited wallet adjustments, reconciliation, audit log, reward rules, workout types, recalculation |
-| Timezone | `Europe/Lisbon` by default; UTC storage; day and month boundaries with daylight saving |
-| Platform | Typed settings with production safety checks, problem+json errors, request ids, JSON logs, rate limiting, CSRF origin check, probes |
+| Fitness sync | Daily totals and workouts from a paired device; idempotent; validated; de-duplicated; HealthKit's decimal numbers accepted and normalised |
+| Reward engine | `min(1500, 0.1 × steps + 5 × workout minutes)` per local day; no double rewards; late data within 7 days; unknown workout types earn nothing |
+| Spending limits | Optional per-request, daily, monthly and minimum-balance limits, enforced when credits are reserved |
+| **AI providers** | Anthropic (Messages API) and OpenAI (Responses API, `store: false`) through the official SDKs, streamed; usage normalised across both; every error class mapped |
+| **Model catalogue** | Models, versioned prices (per category, long-prompt tier) and conversion rates, administered and audited; a model is offered only when enabled, confirmed available, priced from a cited source, and convertible to credits |
+| **Pricing engine** | Exact cost from reported usage; worst case from the provider's own token count; credits rounded up, minimum 1 WC; the price version and rates of every request are stored |
+| **AI gateway** | Estimate → reserve (committed) → stream → settle exactly, in one transaction with the usage record and the answer. Refused before sending: insufficient credits, a limit, an unusable model, a reused request id, a conversation too long |
+| **Failure handling** | Provider errors, refusals, partial streams, time limits, shutdown, crashed requests — each with a defined charge (exact, nothing, or the reserved worst case) and a recorded status |
+| **Disconnects** | A closed browser does not stop or escape a request: it finishes on the server, is charged exactly and the answer is saved |
+| **Conversations** | Create, list, read (with tokens, cost and credits per answer), rename, delete; the last 20 complete messages are sent as context |
+| **Analytics** | Activity, rewards, AI usage (per model, with averages) and credit flows by day, week or month in Lisbon time; a dashboard summary |
+| Administration | Wallet adjustments, reconciliation, audit log, reward rules, workout types, recalculation, models, prices, exchange rates |
+| Platform | Typed settings with production safety checks, problem+json errors, request ids, JSON logs, rate limiting, CSRF origin check, probes, graceful shutdown that settles requests in progress |
 | Quality | Ruff, mypy (strict), CI on GitHub Actions |
 
-Not implemented yet: AI gateway, model catalogue and pricing, chat, analytics, frontend,
-iOS companion. Real activity cannot arrive until the companion exists; the earning path
-can be tried today with labelled test activity (`docs/DEVELOPMENT.md`).
+Not implemented yet: the web interface (Phase 4) and the iOS companion (Phase 5). Until
+then the API is used through its interactive documentation (`/api/v1/docs`), and
+activity can only be test activity.
 
-## Test results (2026-11-14)
+## Test results (2026-11-15)
 
 | Check | Result |
 |---|---|
-| Automated tests | **496 passed**, 0 failed, 0 skipped (~75 s); 197 added in Phase 2 |
-| Concurrency tests repeated 8× | Stable (17 tests) |
+| Automated tests | **633 passed**, 0 failed, 0 skipped (~75 s); 128 added in Phase 3 |
+| No real provider calls | Every AI test uses a scripted fake or the real SDKs over an in-memory transport. Nothing was sent to OpenAI or Anthropic; nothing was spent |
+| Timing-sensitive AI tests repeated 10× | Stable (disconnect, concurrency, deletion mid-answer, shutdown, time limits, crash) |
 | Ruff lint and format | Clean |
-| mypy (strict), 91 source files | Clean |
-| CI on GitHub (pull request #1) | Lint, types, tests and image build run on every push. One run failed during Phase 2 on a single test: a race inside a Phase 1 *test* (it shared a reservation id with other workers before the transaction creating it had committed). The product code was not at fault; the test was fixed and re-run 25 times. |
-| Docker image | Rebuilt with Phase 2; runs as a non-root user |
-| End-to-end over HTTP against the running Compose stack | 34 of 34 Phase 2 checks passed |
-| Live database and logs of that run | Ledger update refused; no errors logged; no password, token or secret in logs |
+| mypy (strict), 117 source files incl. tests | Clean |
+| Docker image | Rebuilt with both SDKs; runs as a non-root user; the Compose stack applies migration 0002, seeds the catalogue and serves all 51 routes |
+| Real-process smoke test | The server under Uvicorn, against a local fake Anthropic API over real sockets: answers streamed progressively; exact charge; a disconnect mid-answer still finished and was charged on the server; a SIGTERM mid-answer let it finish and settle before exit; the ledger reconciled |
 
-Phase 2 tests by area: sync end to end 43 · reward formula (examples and generated-input
-properties) 43 · validation and source policy 39 · spending limits 23 · reward rules 16 ·
-exclusion and deletion 11 · views and test activity 11 · sync concurrency 7 ·
-architecture rules +4.
-
-The tests the specification asks for are all present: daily aggregation, duplicate step
-records, duplicate workouts, overlapping workouts, missing data, delayed synchronisation;
-reward calculation, daily limits, rule changes, duplicate reward prevention, non-eligible
-activities.
+Phase 3 tests by area: chat end to end 25 · provider SDK adapters 30 · pricing 32 ·
+catalogue administration 14 · analytics 12 · gateway internals and both SDKs end to end
+10 · migrations and seed +1 · architecture rules +4.
 
 ## Known issues and limitations
 
 | # | Item | Impact | Status |
 |---|---|---|---|
-| L1 | `docker compose build` cannot run to completion in the development sandbox (TLS-inspecting proxy). The image is built there with `docker build` plus proxy flags, from the same Dockerfile. | CI builds the image on an ordinary machine without those flags and passes; `docker compose up --build` on your own machine is still unconfirmed. | Please tell me if it fails |
+| L1 | `docker compose build` cannot run to completion in the development sandbox (TLS-inspecting proxy); the image is built there with `docker build` plus proxy flags. | None for you: you confirmed `docker compose up --build` works on your machine. | Closed for you |
 | L3 | Uvicorn's own start-up lines are plain text; application logs are JSON. | Cosmetic. | Tidy in Phase 6 |
-| L4 | The rate limiter is per process. | Correct for one backend process, which is the design. | By design (D-03, D-28) |
-| L5 | Running the backend natively on Windows (outside Docker/WSL) is not supported. | None if you use Docker Desktop. | Documented |
+| L4 | The rate limiter is per process. | Correct for one backend process, which is the design. | By design |
 | L6 | No email flows (verification, password reset). | A forgotten password needs a database-level reset. | Revisit in Phase 6 |
-| L7 | Workout type classification is seeded with defaults I chose; your watch's actual labels are unconfirmed. | A mislabelled type earns nothing until classified (one admin call); it cannot over-reward. | Open — needs the labels from your Health app |
-| L8 | Real activity cannot reach the backend until the iOS companion exists. | The earning path is fully built and tested, but only test activity can exercise it today. | Phase 5 |
-| L9 | No web interface yet: the API is used through the interactive documentation page. | Usable for trying things, not a product. | Phase 4 |
-
-L2 from the previous report (CI unverified) is closed: the workflow ran and passed.
+| L7 | Workout type labels from your watch are unconfirmed. | Unknown types earn nothing (your decision). | Phase 5 |
+| L8 | Real activity cannot arrive until the iOS companion exists. | Test activity only. | Phase 5 |
+| L9 | No web interface yet. | The API works through `/api/v1/docs`. | Phase 4 |
+| **L10** | **OpenAI's website could not be reached from this environment** (`openai.com`, `platform.openai.com`). | `gpt-6-luna` is seeded with an **unverified** price taken from third-party listings, so it cannot be used until an administrator verifies or corrects it. Anthropic's prices were verified on its own page. | Needs you (see below) |
+| L11 | No real request has been sent to either provider. | The SDK integrations are tested against the providers' documented wire formats, not yet against the live services. | Needs your keys and approval |
+| L12 | No automatic reconciliation with the providers' own usage reports. | Requests with an uncertain outcome are marked `unknown` for a manual comparison. Automating it would need an admin-scoped provider key, which Walk2AI deliberately does not hold. | By design for now |
+| L13 | A closed browser does not cancel an answer (D-43). | You pay for an answer you stopped watching, at most its reserved worst case; the answer is kept. | By design |
 
 ## Risks
 
 | # | Risk | Status |
 |---|---|---|
-| R1 | Workouts might not reach Apple Health | Closed — you confirmed they do |
 | R2 | No Mac: the iOS companion cannot be built or tested by either of us today | Open — investigated before Phase 5, at no cost |
-| R3 | HealthKit may require the paid Apple Developer Program | Open — part of the same investigation; nothing purchased without approval |
+| R3 | HealthKit may require the paid Apple Developer Program | Open — same investigation; nothing purchased without approval |
 | R4 | iOS background sync is not real-time | Accepted — designed for |
-| R5 | Provider prices change | Mitigated by design — versioned, sourced, dated prices; built in Phase 3 |
-| R6 | A full day's allowance is €0.15 | By design — surfaced through estimates in the chat |
-| R8 | Workout type labels may differ from the seeded defaults | Low — can only under-reward (L7) |
+| R5 | Provider prices change | Mitigated — versioned, sourced, dated prices; a verified price can never be edited; every charge records its price version |
+| R6 | A full day's allowance is €0.15 | By design — Haiku 5.5 answers cost 1–10 WC each; Opus 5.5 can cost hundreds |
+| R8 | Workout type labels may differ from the seeded defaults | Low — can only under-reward |
+| R9 | A provider changes its streaming or usage format | Mitigated — only the adapters know the formats; their tests fail loudly; the gateway charges the worst case if usage goes missing after generation began |
 
 ## Required external configuration
 
-To run the stack: Docker, and a `.env` with `POSTGRES_PASSWORD` and `JWT_SECRET`
-(see `docs/DEVELOPMENT.md`). Nothing else.
+To run the stack: Docker, and a `.env` with `POSTGRES_PASSWORD` and `JWT_SECRET`. Nothing
+else.
 
-Needed later, none of it yet:
+To use the AI (each step only with your go-ahead):
 
-| Item | Phase | Notes |
-|---|---|---|
-| OpenAI API key (dedicated project, prepaid, auto-recharge off) | end of 3 | Backend environment only; only for one approved real request |
-| Anthropic API key (dedicated workspace, prepaid, auto-reload off) | end of 3 | Backend environment only; only for one approved real request |
-| A decision on the iOS build route | before 5 | After the feasibility report |
-| DigitalOcean account, droplet, domain | 6 | Paid; only with your approval |
+| Item | Notes |
+|---|---|
+| Anthropic API key — dedicated workspace, small prepaid balance, auto-reload off | `ANTHROPIC_API_KEY` in `.env` only |
+| OpenAI API key — dedicated project, small prepaid balance, auto-recharge off | `OPENAI_API_KEY` in `.env` only |
+| USD→EUR rate | `POST /admin/exchange-rates` (by hand, D-46) — none is invented |
+| Model check and enabling | `POST /admin/models/{id}/check` (free), then `PUT /admin/models/{id}` `{"enabled": true}` |
+| OpenAI price | Verify `gpt-6-luna`'s price on OpenAI's page (`PUT /admin/model-pricing/{id}` with `verified` and `source_url`), or allow those hosts for this environment so I can |
+| A decision on the iOS build route | Before Phase 5 |
+| DigitalOcean account, droplet, domain | Phase 6; paid; only with your approval |
 
-No external cost has been incurred, no paid service subscribed to, and nothing deployed.
-CI uses GitHub Actions' included minutes and runs only on pull requests and pushes to
-`main`.
+No external cost has been incurred, no paid service subscribed to, nothing deployed, and
+no request sent to an AI provider.
 
 ## Next actions
 
-1. **You:** review Phase 2. Pull request #1 holds Phases 0–2.
-2. **You (optional):** send the workout type labels shown in Apple Health.
-3. **Me, on your go-ahead:** Phase 3 — verify current models and prices from the
-   providers' official pages, build the provider adapters, pricing engine and gateway
-   (estimate → reserve → call → settle) on the existing wallet and limits, all tested
-   against mocked providers. No real API call without your keys and your approval.
+1. **You:** review Phase 3. Pull request #1 holds Phases 0–3.
+2. **You (when ready):** create the provider accounts with a small prepaid balance and
+   auto-recharge off, and put the keys in your `.env`. Then, with your approval, one
+   real request per provider on the cheapest model (a fraction of a cent each).
+3. **You:** confirm the USD→EUR policy (by hand is in force), and either allow
+   `openai.com` / `platform.openai.com` for this environment or verify OpenAI's price
+   yourself.
+4. **Me, on your go-ahead:** Phase 4 — the web application (dashboard, chat with
+   streaming and per-message cost, activity, wallet, analytics, settings, admin).

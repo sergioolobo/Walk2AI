@@ -47,8 +47,11 @@
 - **Provider cost is computed, not billed.** Cost is calculated from the provider's
   reported token usage and the stored price list. If a provider changes prices and the
   price table is not updated, computed cost will drift from the invoice. Mitigations: the
-  `verified_at` date is shown in the admin view, and Phase 3 adds a reconciliation report
-  against the provider's own usage reporting where the account type supports it.
+  `verified_at` date and source page are shown in the admin view, every usage record
+  keeps the provider's request id and the price version it was charged at, and requests
+  whose outcome could not be known are marked `unknown` for comparison with the
+  provider's own usage report. (An automatic reconciliation against that report is not
+  built: it needs an admin-scoped provider key, which Walk2AI deliberately does not hold.)
 
 ## Controls by area
 
@@ -152,14 +155,26 @@
 - With no limits set, the balance itself is still a hard bound: the wallet cannot be
   overdrawn.
 
-### AI gateway — Phase 3
+### AI gateway — implemented (Phase 3)
 
-- Official SDKs and official API keys only. No consumer-subscription sessions, cookies or
-  unofficial endpoints.
+- Official SDKs (`anthropic`, `openai`) and official API keys only. No consumer-subscription
+  sessions, cookies or unofficial endpoints. Only the adapter modules import an SDK
+  (enforced by a test).
+- **Keys stay on the server.** They are read from the environment, handed to the SDK
+  clients and nothing else: no endpoint returns them (`/ai/providers` reports only whether
+  one is configured), they are never logged, and they never reach a browser or a device.
 - A request is sent only after a reservation covering its worst-case cost has committed.
-- Bounded `max_output_tokens` on every request; bounded request timeout.
-- Prompts and responses are stored only in your own database. Provider-side storage
-  options are turned off where the API offers the choice.
+  Insufficient credits, a spending limit, an unusable model or a reused `request_id` are
+  refused before anything leaves the server.
+- Bounded `max_output_tokens` on every request (default 2,048, at most 8,192); bounded
+  request time (`AI_REQUEST_TIMEOUT_SECONDS`, default 120 s); messages up to 32,000
+  characters; at most 30 messages per minute per user.
+- Real spend cannot exceed the credits that paid for it: when the outcome is uncertain
+  after generation began, the worst case is charged (D-44).
+- Prompts and responses are stored only in your own database. OpenAI requests are sent
+  with `store: false`. Provider requests carry no user identifier.
+- Message content is never written to logs or to the audit trail. Provider error text is
+  replaced by a fixed, plain message before it reaches the user.
 
 ### Audit logging — implemented (Phase 1), extended by each later phase
 
@@ -172,7 +187,8 @@ Not recorded: passwords, tokens, keys, message content.
 
 These are settings in the provider consoles, not code. They are the only control that
 still holds if Walk2AI itself is wrong, so they are part of the design rather than an
-afterthought. To be done by you when the accounts are created (Phase 3):
+afterthought. To be done by you when the accounts are created (before the first real
+request):
 
 1. **Prepay a small amount** on each provider and **leave auto-recharge / auto-reload
    off.** The prepaid balance becomes the absolute ceiling on real spending.

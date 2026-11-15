@@ -10,7 +10,8 @@ what was decided and why.
 | Superseded | Replaced by a later entry |
 
 _Phase 0 was approved on 2026-11-13. Entries D-23 to D-31 were made during Phase 1,
-D-32 onward during Phase 2 (approved to proceed on 2026-11-14)._
+D-32 to D-42 during Phase 2 (approved to proceed on 2026-11-14), D-43 onward during
+Phase 3._
 
 ---
 
@@ -149,6 +150,9 @@ HealthKit exposes one combined walking + running distance.
 ### D-18 · Estimates are worst-case; charges are actual
 
 ### D-19 · Unknown outcomes release the hold and are flagged
+
+Sharpened by D-44: this applies when nothing was generated. Once generation has begun,
+an outcome without reported usage is charged the worst case.
 
 ### D-20 · The real spending ceiling is set at the provider
 
@@ -293,21 +297,96 @@ The reward formula is checked with generated inputs as well as examples (never a
 cap, never negative, order-independent, duplicates never add minutes). Development-only;
 nothing is added to the runtime image.
 
+### D-43 · A closed browser does not cancel an AI request
+
+The provider call runs in its own task; the HTTP response only reads its events. If the
+connection drops, the request finishes on the server, is charged exactly, and the full
+answer is saved to the conversation. Cancelling upstream would not make the request free
+— the provider bills what it already generated — and most providers report no usage for
+a cancelled stream, so the cost would become unknown. The price of this choice is paying
+for an answer nobody watched arrive, bounded by the request's worst case.
+
+### D-44 · A stream that breaks after generation began is charged its worst case
+
+If the provider started generating and the stream then broke or timed out without
+reporting usage, the request is charged the reserved worst case (`cost_basis =
+estimated`). The provider will bill for it, and charging less could let real spend exceed
+the credits that paid for it. If the provider refused before generating, nothing is
+charged; a timeout before anything arrived is released and flagged (D-19).
+
+### D-45 · No prompt caching, and requests name one exact model
+
+Prompt caching is not enabled: cache writes cost more than plain input (1.25× for five
+minutes, 2× for an hour on Anthropic) and pay off only when a long prefix is re-sent
+within that time, which at one person's volume saves little. The catalogue already
+stores every cache price and the pricing engine charges them, so enabling it later is a
+small change. Every request names one exact model id and is priced at that model's
+price; nothing lets a provider substitute a different model.
+
+### D-46 · The USD→EUR rate is set by hand (default; awaiting your confirmation)
+
+No rate is invented or seeded. Until an administrator sets one
+(`POST /admin/exchange-rates`), USD-priced models are listed as unusable with the reason
+`no_exchange_rate`. Each request stores the rate it was charged at. An automatic daily
+reference rate remains possible (open question 2).
+
+### D-47 · Prices are seeded only from a page that could be read
+
+The three Claude 5.5 prices were read from Anthropic's pricing page on 2026-11-15 and
+seeded as verified, with that page as their source. OpenAI's pages could not be reached
+from the build environment, so `gpt-6-luna` is seeded with figures from third-party
+listings marked **unverified**: the model stays unusable until an administrator checks
+OpenAI's page and verifies (or corrects) the price. All seeded models start disabled.
+
+### D-48 · A verified price in force can never be edited
+
+It may already have charged requests. Corrections are new versions; the old one ends
+where the new one starts. An unverified price never charged anything (its model was
+unusable), so it can be corrected and then verified. The same versioning applies to
+conversion rates.
+
+### D-49 · Conversation history is bounded, and only complete messages are replayed
+
+Each request sends the last 20 complete messages of the conversation
+(`AI_HISTORY_MESSAGES`). A failed question or a cut-off answer is kept and shown, but
+not sent back to the model. Messages are ordered by a sequence number
+(migration `0002`), not by timestamp, so order is exact even within one instant.
+
+### D-50 · The AI gateway owns its transactions
+
+An exception to D-26, because the gateway is an orchestrator around a slow external
+call rather than a step in someone else's unit of work: it commits the reservation (with
+the question and a pending usage record) before the provider is called, and settles in
+one new transaction afterwards. No transaction is open while a model is answering.
+
+### D-51 · Availability checks read metadata only
+
+`POST /admin/models/{id}/check` asks the provider's models endpoint whether this key can
+use a model. It generates nothing and costs nothing. A model found unavailable is
+disabled.
+
+### D-52 · Apple Health decimals are accepted and normalised on arrival
+
+HealthKit reports every quantity as a double (`8423.0` steps, `6120.38291204` metres).
+Distances and energy are rounded half-to-even to 0.01; steps and durations are rounded
+down to whole numbers; negative, non-finite and non-numeric values are rejected.
+Rejecting the whole batch over a trailing `.0` would have made real syncs fail.
+
 ---
 
 ## Open questions for you
 
-Nothing blocks Phase 3 development. These are needed along the way:
+Nothing blocks Phase 4 development. These are needed along the way:
 
-1. **Workout type labels** (any time) — how your strength, cycling, walking and running
-   workouts are labelled in Apple Health (Health → Browse → Activity → Workouts → open
-   one). Until confirmed, an unexpected label earns nothing rather than too much, and an
-   administrator can classify it in one call.
-2. **USD→EUR rate policy** (Phase 3) — a rate you set by hand (default), or a daily
-   official reference rate fetched automatically.
-3. **Provider accounts** (before the end of Phase 3) — OpenAI and Anthropic API accounts
-   with a small prepaid balance and auto-recharge off. The gateway is built and tested
-   against mocks first; your keys and your approval are only needed for one real request
-   per provider at the end.
-4. **Default spending limits** (optional) — none are set today (D-39). If you would like
-   defaults for new accounts, tell me the numbers.
+1. **Workout type labels** (Phase 5) — how your workouts are labelled in Apple Health.
+   Until confirmed, an unexpected label earns nothing (your decision of 2026-11-15).
+2. **USD→EUR rate policy** — a rate you set by hand (in force by default, D-46), or a
+   daily official reference rate fetched automatically.
+3. **Provider accounts and the first real request** — OpenAI and Anthropic API accounts
+   with a small prepaid balance and auto-recharge off; your keys go only in the server's
+   `.env`. With your approval, one real request per provider (cost: a fraction of a
+   cent) confirms the integration end to end.
+4. **OpenAI's price** — OpenAI's site could not be reached from the build environment.
+   Either allow `openai.com` and `platform.openai.com` for this environment so it can be
+   checked, or read the price for the chosen model on OpenAI's pricing page yourself.
+5. **Default spending limits** (optional) — none are set today (D-39).

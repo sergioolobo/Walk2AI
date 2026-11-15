@@ -74,30 +74,40 @@ Still open from this phase, not blocking: the workout type labels your watch act
 produces ([DECISIONS.md](DECISIONS.md#open-questions-for-you)). Until confirmed, an
 unexpected label earns nothing rather than too much.
 
-## Phase 3 — AI gateway — next
+## Phase 3 — AI gateway — done (awaiting your review)
 
 Goal: both providers behind one interface, every request reserved, costed and recorded.
 
 - [ ] **(you)** Create provider accounts, prepaid balance, auto-recharge off, API keys
-- [ ] Verify current models and prices from the providers' official pages; record sources
-- [ ] Confirm each model is available to your API account
-- [ ] Provider adapter interface; OpenAI adapter; Anthropic adapter
-- [ ] Usage normalisation across providers
-- [ ] Pricing engine: versioned prices, cache categories, long-prompt tier, FX
-- [ ] Cost estimation (provider token counting where offered)
-- [ ] Gateway: estimate → reserve → call → settle / release (on the Phase 1 wallet)
-- [ ] Streaming over Server-Sent Events; cancellation on client disconnect
-- [ ] Timeouts, provider errors, refusals, partial streams
-- [ ] Chat sessions and messages; history window
-- [ ] Endpoints: `/ai/*`, `/analytics/*`, `/admin/models`, `/admin/model-pricing`
-- [ ] Spending alerts
-- [ ] Tests with mocked providers: both integrations, streaming, usage, pricing,
-      errors, insufficient credits, timeouts
+- [x] Verify current models and prices from the providers' official pages; record sources
+      — Anthropic verified 2026-11-15; **OpenAI's site was unreachable from this
+      environment**, so its price is seeded unverified (D-47)
+- [ ] **(you)** Confirm each model is available to your API account
+      (`POST /admin/models/{id}/check`, free, needs your key)
+- [x] Provider adapter interface; OpenAI adapter (Responses API); Anthropic adapter
+      (Messages API), both on the official SDKs
+- [x] Usage normalisation across providers
+- [x] Pricing engine: versioned prices, cache categories, long-prompt tier, FX
+- [x] Cost estimation (provider token counting, with a safe local upper bound)
+- [x] Gateway: estimate → reserve → call → settle / release (on the Phase 1 wallet)
+- [x] Streaming over Server-Sent Events; a disconnect does not cancel or escape the
+      charge (D-43, replaces "cancellation on client disconnect")
+- [x] Timeouts, provider errors, refusals, partial streams, shutdown, crashed requests
+- [x] Chat sessions and messages; history window
+- [x] Endpoints: `/ai/*`, `/analytics/*`, `/admin/models`, `/admin/model-pricing`,
+      `/admin/exchange-rates`
+- [x] Spending alerts (in every `usage` event and in `/analytics/spending`)
+- [x] Tests with mocked providers: both integrations, streaming, usage, pricing,
+      errors, insufficient credits, timeouts, concurrency, disconnects
 - [ ] **(you approve)** One real request per provider on the cheapest model
 
-Accepted when: a message can be sent to one inexpensive model from each provider; the
-charge equals the cost computed from provider-reported usage; every failure path leaves
-the wallet consistent; no automated test makes a real API call.
+Result: 633 automated tests passing (128 new); a smoke test ran the real server against a
+local fake provider over real sockets: progressive streaming, exact charge, a disconnect
+mid-answer (finished and charged on the server), and a shutdown mid-answer (finished and
+settled before exit); the ledger reconciled afterwards.
+
+Still open from this phase: your keys and approval for one real request per provider,
+and a verified OpenAI price ([DECISIONS.md](DECISIONS.md#open-questions-for-you)).
 
 ## Phase 4 — Frontend
 

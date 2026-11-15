@@ -1,9 +1,10 @@
 # Walk2AI — Architecture
 
-> Status: **Architecture approved on 2026-11-13.** Phases 1 and 2 are implemented: the
+> Status: **Architecture approved on 2026-11-13.** Phases 1–3 are implemented: the
 > backend foundation, authentication, device pairing, the wallet, fitness ingestion, the
-> reward engine and spending limits (sections 4, 6, 7, 9, 10 and 11). The AI gateway,
-> frontend and companion are designs not yet built —
+> reward engine, spending limits, the AI gateway with its pricing engine and catalogue,
+> and the analytics (sections 4–11). The frontend and companion are designs not yet
+> built —
 > [PROJECT_STATUS.md](../PROJECT_STATUS.md) says exactly what exists. Decisions are
 > recorded in [DECISIONS.md](DECISIONS.md).
 
@@ -85,8 +86,8 @@ backend/app/
     ├── audit/         audit trail writer                              (built)
     ├── fitness/       sync ingestion, validation, de-duplication      (built)
     ├── rewards/       rule lookup, reward calculation, reward ledger  (built)
-    ├── ai/            gateway, provider adapters, pricing, estimation (Phase 3)
-    └── analytics/     read-only aggregations for the dashboards       (Phase 3)
+    ├── ai/            gateway, provider adapters, pricing, catalogue  (built)
+    └── analytics/     read-only aggregations for the dashboards       (built)
 ```
 
 Rules that keep the money logic honest:
@@ -108,8 +109,11 @@ Rules that keep the money logic honest:
    several wallet operations into one atomic unit. The router commits once the whole
    operation has succeeded.
 
-Rules 2, 6 and 7, and the ban on floating point in money code, are enforced by tests that
-read the source (`tests/unit/test_architecture_rules.py`).
+Rules 2, 4 (only the adapters import a provider SDK), 6 and 7, and the ban on floating
+point in money code, are enforced by tests that read the source
+(`tests/unit/test_architecture_rules.py`). The AI gateway is the one exception to rule 7:
+it is a long-running orchestrator rather than a step in someone else's unit of work, so
+it opens its own short transactions (reserve; settle) around the provider call.
 
 ## 5. The credit economy
 
@@ -129,9 +133,9 @@ Rounding rules — fixed, documented, tested:
 - All monetary arithmetic uses Python `Decimal` and PostgreSQL `NUMERIC`. No floats anywhere
   on a money path.
 
-What the allowance buys (illustrative; uses the Anthropic list prices cached in the
-`claude-api` reference on 2026-11-03, **to be re-verified in Phase 3**, and an assumed
-USD→EUR rate of 0.92 — a request with 2,000 input and 1,000 output tokens):
+What the allowance buys (Anthropic list prices **verified on 2026-11-15** on the
+provider's pricing page, and an assumed USD→EUR rate of 0.92 — a request with 2,000 input
+and 1,000 output tokens; `tests/unit/test_pricing.py` checks these figures):
 
 | Model class | Approx. cost | Credits | Requests per max day (1,500 WC) |
 |---|---|---|---|
@@ -141,8 +145,9 @@ USD→EUR rate of 0.92 — a request with 2,000 input and 1,000 output tokens):
 
 A full day of activity is worth €0.15. That is the intended constraint, but it means long
 conversations on large models burn the allowance quickly because the whole history is
-re-sent as input on every turn. The chat therefore needs a visible per-request estimate,
-a configurable history window, and prompt caching where the provider supports it.
+re-sent as input on every turn. The chat therefore shows a per-request estimate and
+sends a bounded history window (the last 20 complete messages, configurable). Prompt
+caching is not enabled yet (D-45).
 
 ## 6. Reward engine
 
@@ -261,21 +266,32 @@ Settlement arithmetic, for a hold of R and an actual cost of C:
 
 ## 8. AI gateway
 
-One internal interface; provider differences stay inside adapters.
+One internal interface; provider differences stay inside adapters
+(`app/services/ai/providers/`), which are the only modules that import a provider SDK.
 
 ```python
 class ProviderAdapter(Protocol):
-    async def count_input_tokens(self, request: ChatRequest) -> TokenEstimate: ...
-    def stream(self, request: ChatRequest) -> AsyncIterator[ProviderEvent]: ...
-    # ProviderEvent = TextDelta | UsageReport | Completed | ProviderFailure
+    provider: str
+    async def count_input_tokens(self, request: ProviderRequest) -> int: ...
+    def stream(self, request: ProviderRequest) -> AsyncIterator[ProviderEvent]: ...
+    #   ProviderEvent = Started | TextDelta | Completed(usage, stop_reason, …)
+    #   errors are raised as ProviderFailure(code, billed_usage=None | TokenUsage)
+    async def check_model(self, model: str) -> ModelCheck: ...
 ```
 
 Each adapter normalises usage into one shape, because the providers count differently
-(for example, whether cached tokens are included in the input-token figure):
+(OpenAI's input figure *includes* cached tokens; Anthropic's excludes them and splits
+cache writes by lifetime; both count reasoning inside output):
 
 ```
-NormalisedUsage(uncached_input, cache_read, cache_write, output, reasoning)
+TokenUsage(input_tokens,            # uncached input only
+           cache_read_tokens, cache_write_tokens, cache_write_1h_tokens,
+           output_tokens,           # includes reasoning
+           reasoning_tokens)        # for information; never billed twice
 ```
+
+Adapters: Anthropic Messages API and OpenAI Responses API (`store: false`), both through
+the official SDKs, streamed. Token counting uses each provider's counting endpoint.
 
 ### Request lifecycle
 
@@ -284,67 +300,96 @@ sequenceDiagram
     participant UI as Web UI
     participant GW as AI gateway
     participant W as WalletService
+    participant T as Request task
     participant P as Provider
 
-    UI->>GW: POST /ai/chat (session, model, max_output_tokens)
-    GW->>GW: model enabled? verified price in force?
-    GW->>GW: worst-case estimate = input tokens × price + max_output × price
-    GW->>W: reserve(estimate) — checks limits + balance under row lock
-    alt not enough credits / limit hit
-        W-->>UI: 402 with reason; nothing sent to the provider
-    else reserved
-        W-->>GW: reservation
-        GW->>P: request (streaming)
-        P-->>UI: text deltas (SSE)
-        P-->>GW: final usage
-        GW->>GW: actual cost from provider usage × price version pinned at reservation
-        GW->>W: settle(actual) — AI_USAGE + CREDIT_RELEASE in one transaction
-        GW-->>UI: usage event: tokens, cost, credits charged, new balance
+    UI->>GW: POST /ai/chat (request_id, session, model, message)
+    GW->>GW: model usable? (enabled, checked, key, verified price, rates)
+    GW->>P: count input tokens (history + message)
+    GW->>GW: worst case = prompt × dearest input price + max_output × output price
+    GW->>W: reserve(worst case) — limits + balance under the wallet lock
+    alt not enough credits / limit hit / duplicate request_id
+        W-->>UI: 402 / 409 JSON; nothing sent to the provider
+    else reserved (committed with the question and a pending usage record)
+        GW-->>UI: SSE start
+        GW->>T: launch (independent of the HTTP connection)
+        T->>P: request (streaming)
+        P-->>T: text
+        T-->>UI: SSE delta …
+        P-->>T: final usage
+        T->>W: settle(exact cost) — AI_USAGE + CREDIT_RELEASE, usage record, answer: one transaction
+        T-->>UI: SSE usage (tokens, cost, credits, balance, limits), done
     end
 ```
+
+The provider call runs in its own asyncio task. The HTTP response only *reads* its
+events, so a closed browser stops the reading, not the request: the answer finishes, is
+charged exactly, and is saved to the conversation. On shutdown the application waits up
+to 20 seconds for requests in progress to finish and settle; whatever remains is
+cancelled and settled conservatively.
 
 ### Outcome matrix
 
 | Outcome | Charge | Usage record |
 |---|---|---|
-| Completed, provider reported usage | Actual cost | `succeeded`, `cost_basis = provider_usage` |
-| Provider error before any output (4xx, 5xx, connection) | Nothing; full release | `failed` |
-| Client disconnects mid-stream | Upstream is cancelled; charged on provider usage if received, otherwise a conservative estimate from the text produced | `cancelled`, basis marked `estimated` when it is |
-| Timeout with partial output | As above | `timeout` |
-| Timeout / crash with nothing known | Released; flagged for reconciliation against the provider's usage report | `unknown` |
-| Actual cost above the reservation (should not happen: the hold is a worst case) | Charged from the hold, remainder from available but never below zero; anomaly logged | `succeeded` + anomaly |
+| Completed with reported usage (including a refusal or a cut-off at the output limit) | Exact cost | `succeeded`, `cost_basis = provider_usage` |
+| Provider failed and reported its usage (e.g. OpenAI `response.failed`) | Exact cost of that usage | `failed`, `provider_usage` |
+| Provider refused before generating (4xx, 429, 5xx, connection error) | Nothing; hold released | `failed`, `none` |
+| Generation began, then the stream broke without usage | **The reserved worst case** — the provider bills it, so real spend can never exceed credits | `failed`, `estimated` |
+| Timed out after generation began | The reserved worst case | `timeout`, `estimated` |
+| Timed out before anything arrived | Nothing; flagged for reconciliation against the provider's usage report | `unknown`, `none` |
+| Server shut down mid-answer (after the grace period) | Worst case if generation had begun, otherwise nothing | `cancelled` |
+| Process died before settling | Nothing (the hold expires and is released); flagged by the maintenance pass | `unknown`, `error_code = abandoned` |
+| Client disconnected | Not an outcome: the request continues and ends in one of the rows above | — |
+| Actual cost above the reservation (cannot happen: the hold is a worst case) | Charged from the hold, remainder from available, never below zero; the shortfall is recorded | `succeeded` |
 
-A lifespan background task expires reservations that outlive their request (process crash),
-so credits can never stay locked indefinitely.
+A background maintenance pass (every 60 s) releases holds that outlived their request
+(time limit + 5 minutes) and flags the usage records they belonged to, so credits can
+never stay locked indefinitely.
 
 ### Pricing engine
 
 - Prices live in `model_pricing`: per-million-token prices per category (input, output,
-  cache read, cache write, optional long-prompt tier, anything else in `extra_prices`),
-  with a currency, an effective range, a `verified` flag and the source URL.
-- **A model is usable only while a verified price row covers the present moment.** No
-  price, or an unverified one, means the model is listed as unavailable — a price is
-  never invented.
-- The price row and both conversion rates used for a request are pinned at reservation
-  time and stored on the usage record, so every historical charge can be recomputed.
+  cache read, 5-minute and 1-hour cache writes, an optional long-prompt tier with its own
+  prices), with a currency, an effective range, a `verified` flag and the source URL.
+- **A model is usable only while a verified price covers the present moment.** No price,
+  or an unverified one, means the model is listed as unavailable — a price is never
+  invented. A verified price that has started can never be edited (it may have charged
+  requests): a new version supersedes it.
+- The price version and both conversion rates used for a request are pinned at
+  reservation and stored on the usage record (`pricing_id`, `exchange_rate`,
+  `wc_per_eur`), so every historical charge can be recomputed.
 
 ```
-cost = ( uncached_input × input_price
-       + cache_read     × cached_input_price
-       + cache_write    × cache_write_price
-       + output         × output_price ) / 1,000,000          (reasoning ⊂ output)
-cost_eur = cost × usd_eur_rate
+tier     = long-prompt prices if the model has a tier and the whole prompt exceeds its
+           threshold (the tier then applies to the entire request), else standard
+cost     = ( input × input_price + cache_read × cache_read_price
+           + cache_write × cache_write_price + cache_write_1h × cache_write_1h_price
+           + output × output_price ) / 1,000,000                   (reasoning ⊂ output)
+worst    = prompt_tokens × (dearest input-side price of the tier that prompt implies)
+           + max_output_tokens × output_price
+cost_eur = cost × rate(currency → EUR)
 credits  = max(1, ceil(cost_eur × wc_per_eur))
 ```
+
+Stored amounts are rounded *up* to 8 decimal places. The worst case can never be below
+the actual cost of any outcome the provider can report (tested with generated inputs).
 
 ### Model catalogue
 
 `ai_models` is an admin-managed list. A model appears to the user only when it is
 `enabled`, its availability has been confirmed against the provider's models endpoint
-with *this* account's key, and it has a verified price. Capability flags
-(`supports_temperature`, `supports_reasoning_effort`, `supports_streaming`) drive which
-controls the UI shows; several current models reject sampling parameters outright, so
-temperature is offered per model, not globally.
+with *this* account's key (`POST /admin/models/{id}/check` — metadata only, free), the
+provider's key is configured, it has a verified price in force, and the conversion rates
+exist. Each unmet condition is reported as a reason. Capability flags
+(`supports_temperature`, `supports_reasoning_effort`) decide which options a request may
+carry; the current Claude models reject sampling parameters, so temperature is offered
+per model, not globally.
+
+Seeded (all **disabled**): Claude Haiku 5.5, Sonnet 5.5 and Opus 5.5 with prices verified
+on the provider's page on 2026-11-15; and `gpt-6-luna` with an **unverified** price
+(OpenAI's pricing page could not be reached from the build environment), which keeps it
+unusable until an administrator verifies it.
 
 ## 9. Spending controls
 
@@ -359,8 +404,8 @@ wallet row lock, before anything is sent to a provider:
 4. Charged this month + active holds + estimate ≤ monthly maximum.
 5. `available − estimate ≥ minimum balance` (minimum balance ≥ 0; no negative balances).
 
-From Phase 3 the gateway adds a check before these: the model is enabled and has a
-verified price.
+The gateway checks before these that the model is usable (enabled, available, priced,
+convertible) and that the conversation fits the model's context window.
 
 "Today" and "this month" are the user's own (Europe/Lisbon by default). Only the actual
 cost of a finished request counts as spent; credits held for requests in flight count
@@ -468,8 +513,8 @@ The proposed stack is sound; the changes are small and reduce moving parts.
 | Frontend | Keep Next.js + Tailwind + shadcn/ui + Recharts | shadcn's chart components are built on Recharts. |
 | Reverse proxy | **Caddy** (approved) | Automatic HTTPS with a five-line config; fewer ways to misconfigure TLS. |
 | iOS | Keep SwiftUI + HealthKit | The only way to read Apple Health natively. No Mac is available and no purchase is approved, so the build route is investigated before Phase 5 (D-07). |
-| OpenAI API surface | Responses API via the official SDK (confirm in Phase 3) | The current primary API; reports usage on streamed responses. |
-| Anthropic API surface | Messages API via the official SDK | Token counting endpoint for exact pre-request estimates. |
+| OpenAI API surface | Responses API via the official SDK (`openai` 3.x) — confirmed | The current primary API; reports usage on streamed responses; `store: false` keeps conversations off OpenAI's side. |
+| Anthropic API surface | Messages API via the official SDK (`anthropic` 2.x) | Token counting endpoint for exact pre-request estimates. |
 
 Versions verified on 2026-11-13 are listed in [DEVELOPMENT.md](DEVELOPMENT.md#toolchain).
 

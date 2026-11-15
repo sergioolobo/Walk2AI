@@ -1,9 +1,9 @@
 # Walk2AI — Development Guide
 
-> Status: **Phases 1 and 2 complete.** The backend, database and Docker Compose stack
-> described here exist and are tested. The AI gateway (Phase 3), frontend (Phase 4) and
-> iOS companion (Phase 5) do not exist yet; nothing below describes software that is
-> not in the repository.
+> Status: **Phases 1–3 complete.** The backend (including the AI gateway and the
+> analytics), database and Docker Compose stack described here exist and are tested. The
+> frontend (Phase 4) and iOS companion (Phase 5) do not exist yet; nothing below
+> describes software that is not in the repository.
 
 ## Run it
 
@@ -105,6 +105,23 @@ The response shows 800 + 150 = 950 WC awarded; `GET /wallet` shows the balance a
 again: nothing more is paid. Everything this route creates is labelled as test data, and
 the application refuses to start in production with the switch on.
 
+## Try the AI gateway without spending anything
+
+With no API keys set, the models are listed in `GET /admin/models` with the reasons they
+cannot be used. To make one usable you need a real key, and a real request costs money —
+so ask before doing it. The steps, once you have approved a request:
+
+1. Put `ANTHROPIC_API_KEY=…` (and/or `OPENAI_API_KEY=…`) in `.env`; restart.
+2. `POST /admin/exchange-rates` `{"base_currency":"USD","quote_currency":"EUR","rate":"0.92","source":"…"}`
+3. `POST /admin/models/{id}/check` — free: it reads the model's metadata.
+4. `PUT /admin/models/{id}` `{"enabled": true}`
+5. Give yourself credits (test activity above, or `POST /admin/wallet/adjustments`).
+6. `POST /ai/estimate`, then `POST /ai/chat`.
+
+For development without a key, the backend can be pointed at any server that speaks the
+provider's API (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`); the Phase 3 smoke test used a
+local fake that streams a scripted answer.
+
 ## Toolchain
 
 | Tool | Version | Used for |
@@ -117,10 +134,8 @@ the application refuses to start in production with the switch on.
 
 Backend libraries, pinned exactly in `backend/uv.lock`: FastAPI 0.162, Pydantic 2.14,
 SQLAlchemy 2.1, Alembic 1.20, psycopg 3.3, Uvicorn 0.54, argon2-cffi 25.1, PyJWT 2.15.
-Development: pytest 9, Ruff 0.17, mypy 2.4, httpx 0.28.
-
-The provider SDKs (`openai`, `anthropic`) are deliberately not installed yet: they are
-added with the AI gateway in Phase 3, not before they are used.
+Provider SDKs: `anthropic` 2.8 and `openai` 3.51 (both official; both use `httpx2`).
+Development: pytest 9, Ruff 0.17, mypy 2.4, httpx 0.28, Hypothesis 6.
 
 ## Repository layout
 
@@ -141,10 +156,10 @@ backend/
 │       ├── audit/         audit trail writer
 │       ├── fitness/       normalised records, validation, source policy, ingestion
 │       ├── rewards/       the formula (pure), rule lookup and admin, RewardEngine
-│       ├── ai/            (Phase 3)
-│       └── analytics/     (Phase 3)
-├── migrations/            Alembic; versions/0001_initial_schema.py
-└── tests/                 496 tests
+│       ├── ai/            pricing, catalogue, gateway, conversations, providers/
+│       └── analytics/     dashboard aggregations
+├── migrations/            Alembic; versions/0001_initial_schema.py, 0002_…
+└── tests/                 633 tests
 frontend/                  (Phase 4)
 mobile/                    (Phase 5)
 infrastructure/
@@ -203,7 +218,14 @@ pushes to `main`.
 | `test_fitness_views_and_test_data.py` | 11 | Read views, sync status, labelled test activity |
 | `test_reward_rules.py` | 16 | Rule administration; rate changes never alter days already begun; workout types |
 | `test_schema_integrity.py` | 36 | Guarantees the database enforces on its own, exercised with raw SQL |
-| `test_migrations.py` | 6 | Upgrade / downgrade / re-upgrade; models match schema; seed data |
+| `test_migrations.py` | 7 | Upgrade / downgrade / re-upgrade; models match schema; seed data and catalogue |
+| `test_fitness_realistic_payloads.py` | 9 | A HealthKit-shaped week through the device route: doubles, rolling resends, duplicates from two apps |
+| `test_ai_providers.py` | 30 | The real Anthropic and OpenAI SDKs against recorded-shape HTTP: streaming, usage, every error class |
+| `test_ai_chat.py` | 25 | The gateway end to end: exact charges, refusals before sending, every failure outcome, disconnects, concurrency, history |
+| `test_ai_gateway.py` | 10 | Time limits, crashed requests, both real SDKs behind the gateway, estimates, conversations |
+| `test_ai_admin.py` | 14 | Models, prices and rates: enabling rules, immutable verified prices, audit |
+| `test_analytics.py` | 12 | Day / week / month periods in Lisbon time across summer time; agreement with history and ledger |
+| `unit/test_pricing.py` | 32 | Costs per category, long-prompt tier, worst case ≥ actual (generated inputs), rounding |
 | `test_auth_api.py` | 35 | Registration, login, rotation, theft detection, logout, password change |
 | `test_devices_api.py` | 27 | Pairing, token scope, revocation |
 | `test_wallet_api.py` | 32 | Wallet views, pagination, Lisbon day and month boundaries |
@@ -212,7 +234,7 @@ pushes to `main`.
 | `test_operations.py` | 5 | CLI commands, reservation sweeper, application lifespan |
 | `unit/test_reward_calculator.py` | 43 | The reward formula: examples, edge cases and generated-input properties |
 | `unit/test_fitness_model_and_validation.py` | 39 | Type normalisation, plausibility rules, source policy |
-| `unit/` (others) | 78 | Timezone arithmetic, cryptography helpers, configuration, rate limiter, architecture rules |
+| `unit/` (others) | 82 | Timezone arithmetic, cryptography helpers, configuration, rate limiter, architecture rules |
 
 Principles:
 
@@ -226,15 +248,19 @@ Principles:
 - **Properties, not only examples.** The reward formula is also checked with generated
   inputs (Hypothesis): never above a cap, never negative, order-independent, and a
   duplicated workout never adds minutes.
-- **No test calls an AI provider.** (None exists yet; the rule is in place for Phase 3.)
+- **No test calls an AI provider.** Providers are scripted fakes (`tests/ai_support.py`)
+  or the real SDKs over an in-memory HTTP transport (`tests/provider_fixtures.py`). No
+  test needs a key, reaches a provider or costs anything.
 
 ### Architecture rules enforced by tests
 
 `tests/unit/test_architecture_rules.py` reads the source and fails if:
 
-- any code under `services/wallet`, `services/rewards`, `services/fitness` or
-  `services/ai` uses a float literal, the `float` type, `/` on anything but a `Decimal`,
-  or (in rewards and fitness) `timedelta.total_seconds()`;
+- any code under `services/wallet`, `services/rewards`, `services/fitness`,
+  `services/ai` or `services/analytics` uses a float literal, the `float` type, `/` on
+  anything but a `Decimal`, or (in rewards and fitness) `timedelta.total_seconds()`
+  — the provider adapters excepted, which hold no money logic (also checked);
+- a provider SDK is imported anywhere but its adapter;
 - anything outside `WalletService` constructs a ledger row or assigns a balance;
 - anything outside `RewardEngine` pays or reverses an activity reward;
 - anything outside `core/config.py` reads the environment, or the HTTP layer references
@@ -269,7 +295,8 @@ Principles:
 | Limitation | Consequence |
 |---|---|
 | No macOS, Xcode or Swift toolchain | The iOS companion cannot be compiled here (and you have no Mac): see [DECISIONS.md](DECISIONS.md), D-07. |
-| No provider API keys | Provider integrations (Phase 3) are developed against mocks; one real request per provider needs your keys and your approval. |
+| No provider API keys | The provider integrations are tested against mocks; one real request per provider needs your keys and your approval. |
+| `openai.com` is not reachable from this environment | OpenAI's prices could not be read here; `gpt-6-luna`'s price is seeded unverified (D-47). |
 | Internet access through a TLS-inspecting proxy | Image builds here need the proxy flags shown above. On an ordinary machine `docker compose up --build` needs nothing extra. |
 
 ## Definition of done, per phase
