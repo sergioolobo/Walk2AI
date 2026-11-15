@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     argon2_parallelism: int = Field(default=4, ge=1)
 
     # --- Web -------------------------------------------------------------
-    public_origin: str = "http://localhost:3000"
+    public_origin: str = "http://localhost:8000"
     rate_limit_enabled: bool = True
     # Interactive API docs. None = enabled everywhere except production.
     docs_enabled: bool | None = None
