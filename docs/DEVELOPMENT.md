@@ -118,6 +118,14 @@ so ask before doing it. The steps, once you have approved a request:
 5. Give yourself credits (test activity above, or `POST /admin/wallet/adjustments`).
 6. `POST /ai/estimate`, then `POST /ai/chat`.
 
+On Windows, `infrastructure/scripts/first-ai-request.ps1` does steps 2–6 for you
+(ECB rate of the day, check, enable, credits) and asks before sending one real message
+to each enabled model:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infrastructure\scripts\first-ai-request.ps1
+```
+
 For development without a key, the backend can be pointed at any server that speaks the
 provider's API (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`); the Phase 3 smoke test used a
 local fake that streams a scripted answer.
