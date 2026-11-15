@@ -14,7 +14,7 @@ Next: Phase 4 — the web application.
 | 0 — Architecture and repository preparation | Done; approved 2026-11-13 |
 | 1 — Backend foundation and wallet | Done |
 | 2 — Fitness ingestion, reward engine, spending limits | Done; you approved continuing on 2026-11-15 |
-| 3 — AI gateway | **Done; awaiting review** — the first real request per provider awaits your keys and approval |
+| 3 — AI gateway | **Done; awaiting review** — first real request to each provider succeeded on 2026-11-15 |
 | 4 — Frontend | Not started |
 | Before 5 — iOS feasibility investigation (no Mac, no purchases) | Not started |
 | 5 — iOS and HealthKit | Not started |
@@ -77,7 +77,7 @@ catalogue administration 14 · analytics 12 · gateway internals and both SDKs e
 | L8 | Real activity cannot arrive until the iOS companion exists. | Test activity only. | Phase 5 |
 | L9 | No web interface yet. | The API works through `/api/v1/docs`. | Phase 4 |
 | L10 | OpenAI's website was at first unreachable from this environment. | Closed: you allowed it; `gpt-6-luna`'s price is now verified on OpenAI's page (with its cache-write prices). An existing database is upgraded on its next start. | Closed |
-| L11 | No real request has been sent to either provider. | The SDK integrations are tested against the providers' documented wire formats, not yet against the live services. | Needs your keys and approval |
+| L11 | First real requests (2026-11-15, run by you): Claude Haiku 5.5 — 36 in / 8 out tokens, USD 0.0000076, 1 WC; GPT-6 Luna — 23 in / 7 out, USD 0.0000058, 1 WC. Charges match the price × usage exactly. | Both live integrations confirmed. | Closed |
 | L12 | No automatic reconciliation with the providers' own usage reports. | Requests with an uncertain outcome are marked `unknown` for a manual comparison. Automating it would need an admin-scoped provider key, which Walk2AI deliberately does not hold. | By design for now |
 | L13 | A closed browser does not cancel an answer (D-43). | You pay for an answer you stopped watching, at most its reserved worst case; the answer is kept. | By design |
 
@@ -109,8 +109,9 @@ To use the AI (each step only with your go-ahead):
 | A decision on the iOS build route | Before Phase 5 |
 | DigitalOcean account, droplet, domain | Phase 6; paid; only with your approval |
 
-No external cost has been incurred, no paid service subscribed to, nothing deployed, and
-no request sent to an AI provider.
+Provider accounts were created by you, each with a small prepaid balance and automatic
+recharge off. The only real AI spend so far is the two test requests above (under
+USD 0.00002 in total). Nothing deployed, no other paid service.
 
 ## Next actions
 

@@ -78,11 +78,10 @@ unexpected label earns nothing rather than too much.
 
 Goal: both providers behind one interface, every request reserved, costed and recorded.
 
-- [ ] **(you)** Create provider accounts, prepaid balance, auto-recharge off, API keys
+- [x] **(you)** Create provider accounts, prepaid balance, auto-recharge off, API keys
 - [x] Verify current models and prices from the providers' official pages; record sources
       — both verified on the providers' own pages on 2026-11-15 (D-47)
-- [ ] **(you)** Confirm each model is available to your API account
-      (`POST /admin/models/{id}/check`, free, needs your key)
+- [x] **(you)** Confirm each model is available to your API account
 - [x] Provider adapter interface; OpenAI adapter (Responses API); Anthropic adapter
       (Messages API), both on the official SDKs
 - [x] Usage normalisation across providers
@@ -98,15 +97,16 @@ Goal: both providers behind one interface, every request reserved, costed and re
 - [x] Spending alerts (in every `usage` event and in `/analytics/spending`)
 - [x] Tests with mocked providers: both integrations, streaming, usage, pricing,
       errors, insufficient credits, timeouts, concurrency, disconnects
-- [ ] **(you approve)** One real request per provider on the cheapest model
+- [x] **(you approve)** One real request per provider on the cheapest model — both
+      succeeded on 2026-11-15, charged exactly
 
 Result: 635 automated tests passing (130 new); a smoke test ran the real server against a
 local fake provider over real sockets: progressive streaming, exact charge, a disconnect
 mid-answer (finished and charged on the server), and a shutdown mid-answer (finished and
 settled before exit); the ledger reconciled afterwards.
 
-Still open from this phase: your keys and approval for one real request per provider,
-and the automatic daily USD→EUR rate from the ECB (approved; D-46).
+Still open from this phase: the automatic daily USD→EUR rate from the ECB (approved;
+D-46).
 
 ## Phase 4 — Frontend
 
