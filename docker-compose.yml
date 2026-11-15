@@ -34,10 +34,13 @@ x-backend-environment: &backend-environment
   SYNC_WINDOW_DAYS: ${SYNC_WINDOW_DAYS:-30}
   MAX_STEPS_PER_DAY: ${MAX_STEPS_PER_DAY:-100000}
   MAX_WORKOUT_HOURS: ${MAX_WORKOUT_HOURS:-12}
-  # Provider keys stay on the backend. Unused until the AI gateway (Phase 3).
+  # Provider keys stay on the backend: never passed to any other service.
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   AI_REQUEST_TIMEOUT_SECONDS: ${AI_REQUEST_TIMEOUT_SECONDS:-120}
+  AI_DEFAULT_MAX_OUTPUT_TOKENS: ${AI_DEFAULT_MAX_OUTPUT_TOKENS:-2048}
+  AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-8192}
+  AI_HISTORY_MESSAGES: ${AI_HISTORY_MESSAGES:-20}
 
 services:
   db:

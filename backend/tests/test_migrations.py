@@ -67,7 +67,7 @@ def test_database_is_at_the_revision_the_code_expects(
 ) -> None:
     with sync_engine.connect() as connection:
         applied = connection.execute(sa.text("SELECT version_num FROM alembic_version")).scalar()
-    assert applied == expected_schema_revision() == "0001"
+    assert applied == expected_schema_revision() == "0002"
 
 
 def test_integrity_objects_exist(migrated_database: None, sync_engine: sa.Engine) -> None:
@@ -169,11 +169,14 @@ async def test_seed_creates_the_initial_configuration_once(session_factory: Sess
 
     assert (first.reward_rules_created, first.exchange_rates_created) == (3, 1)
     assert first.workout_types_created >= 15
+    assert (first.models_created, first.prices_created) == (4, 4)
     assert (
         second.reward_rules_created,
         second.workout_types_created,
         second.exchange_rates_created,
-    ) == (0, 0, 0)
+        second.models_created,
+        second.prices_created,
+    ) == (0, 0, 0, 0, 0)
 
     async with session_factory() as session:
         rules = {
@@ -240,3 +243,37 @@ async def test_seed_does_not_overwrite_changed_configuration(session_factory: Se
             )
             == 2000
         )
+
+
+@pytest.mark.anyio
+async def test_seeded_models_start_disabled_and_only_cited_prices_are_verified(
+    session_factory: Sessions,
+) -> None:
+    """Nothing is offered to users until an administrator enables it; no currency rate
+    to EUR is invented (the administrator sets it)."""
+    async with session_factory() as session, session.begin():
+        await seed_initial_configuration(session)
+    async with session_factory() as session:
+        models = (
+            await session.execute(
+                sa.text(
+                    "SELECT m.model_identifier, m.enabled, p.verified, p.source_url, "
+                    "p.input_price, p.output_price FROM ai_models m "
+                    "JOIN model_pricing p ON p.model_id = m.id ORDER BY m.model_identifier"
+                )
+            )
+        ).all()
+        usd = await session.scalar(
+            sa.text("SELECT count(*) FROM exchange_rates WHERE base_currency = 'USD'")
+        )
+
+    assert {m.model_identifier: (m.enabled, m.verified) for m in models} == {
+        "claude-haiku-5-5": (False, True),
+        "claude-opus-5-5": (False, True),
+        "claude-sonnet-5-5": (False, True),
+        "gpt-6-luna": (False, False),
+    }
+    assert all(m.source_url and m.source_url.startswith("https://") for m in models if m.verified)
+    haiku = next(m for m in models if m.model_identifier == "claude-haiku-5-5")
+    assert (haiku.input_price, haiku.output_price) == (Decimal("0.10"), Decimal("0.50"))
+    assert usd == 0

@@ -41,8 +41,12 @@ def test_cli_seed_is_idempotent(
     assert cli.main(["seed"]) == 0
     second = capsys.readouterr().out
 
-    assert "3 reward rule(s)" in first and "1 conversion rate(s) created" in first
-    assert "0 reward rule(s), 0 workout type(s), 0 conversion rate(s) created" in second
+    assert "3 reward rule(s)" in first and "1 conversion rate(s)" in first
+    assert "4 AI model(s), 4 price(s) created" in first
+    assert (
+        "0 reward rule(s), 0 workout type(s), 0 conversion rate(s), "
+        "0 AI model(s), 0 price(s) created"
+    ) in second
     with sync_engine.connect() as connection:
         assert connection.execute(sa.text("SELECT count(*) FROM reward_rules")).scalar() == 3
 

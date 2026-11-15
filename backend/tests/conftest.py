@@ -26,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import Settings
 from app.main import BACKEND_ROOT, create_app
 from app.models import Base
+from app.services.ai.gateway import wait_for_inflight
+from tests.ai_support import FakeProvider, FakeProviders
 from tests.support import MutableClock
 
 DEFAULT_TEST_DATABASE_URL = "postgresql+psycopg://walk2ai:walk2ai_dev@localhost:5432/walk2ai_test"
@@ -174,3 +176,20 @@ def make_app(settings: Settings, clock: MutableClock, db: None) -> AppFactory:
             await application.state.engine.dispose()
 
     return factory
+
+
+@pytest.fixture
+async def fake_providers(fresh_app: FastAPI) -> AsyncIterator[FakeProviders]:
+    """Scripted stand-ins for both providers. Requests still running when the test ends
+    are let finish (or cancelled) so nothing settles into the next test."""
+    providers = fresh_app.state.ai_providers
+    saved = dict(providers)
+    fakes = FakeProviders(FakeProvider("anthropic"), FakeProvider("openai"))
+    providers.clear()
+    providers.update(anthropic=fakes.anthropic, openai=fakes.openai)
+    try:
+        yield fakes
+    finally:
+        await wait_for_inflight(fresh_app.state.ai_inflight, 5)
+        providers.clear()
+        providers.update(saved)

@@ -2,7 +2,8 @@
 
 python -m app.cli seed                 insert missing initial configuration
 python -m app.cli reconcile            verify balances against the ledger
-python -m app.cli expire-reservations  release holds past their expiry
+python -m app.cli expire-reservations  release holds past their expiry and flag the AI
+                                       requests they belonged to
 """
 
 import argparse
@@ -16,6 +17,7 @@ from app.core.clock import SystemClock
 from app.core.config import get_settings
 from app.core.db import build_engine, build_session_factory
 from app.seeds import seed_initial_configuration
+from app.services.ai.maintenance import mark_abandoned_requests
 from app.services.wallet import WalletService
 from app.services.wallet.maintenance import expire_stale_reservations
 
@@ -28,7 +30,8 @@ async def _seed(session_factory: async_sessionmaker[AsyncSession]) -> int:
     print(
         f"seed: {result.reward_rules_created} reward rule(s), "
         f"{result.workout_types_created} workout type(s), "
-        f"{result.exchange_rates_created} conversion rate(s) created"
+        f"{result.exchange_rates_created} conversion rate(s), "
+        f"{result.models_created} AI model(s), {result.prices_created} price(s) created"
     )
     return 0
 
@@ -47,8 +50,10 @@ async def _reconcile(session_factory: async_sessionmaker[AsyncSession]) -> int:
 
 
 async def _expire(session_factory: async_sessionmaker[AsyncSession]) -> int:
-    count = await expire_stale_reservations(session_factory, SystemClock())
-    print(f"expire-reservations: {count} released")
+    clock = SystemClock()
+    count = await expire_stale_reservations(session_factory, clock)
+    flagged = await mark_abandoned_requests(session_factory, clock)
+    print(f"expire-reservations: {count} released, {flagged} abandoned AI request(s) flagged")
     return 0
 
 

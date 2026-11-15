@@ -23,6 +23,7 @@ MONEY_PACKAGES = (
     APP / "services" / "rewards",
     APP / "services" / "fitness",
     APP / "services" / "ai",
+    APP / "services" / "analytics",
 )
 
 

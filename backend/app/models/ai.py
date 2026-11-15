@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import ForeignKey, Index, Numeric, UniqueConstraint
+from sqlalchemy import BigInteger, ForeignKey, Identity, Index, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, Credits, new_uuid, utcnow
@@ -155,9 +155,11 @@ class AIUsage(Base):
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
-    __table_args__ = (Index("ix_chat_messages_session_created", "session_id", "created_at"),)
+    __table_args__ = (Index("ix_chat_messages_session_seq", "session_id", "seq"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=new_uuid)
+    # Assigned by the database; the order in which a conversation is replayed.
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True))
     session_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("chat_sessions.id", ondelete="CASCADE")
     )
