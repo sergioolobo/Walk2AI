@@ -119,7 +119,7 @@ def build(preview: bool) -> None:
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
         f'<link rel="icon" href="{FAVICON}">\n'
-        '<meta property="og:title" content="Walk2AI">\n'
+        '<meta property="og:title" content="Wobo">\n'
         '<meta property="og:description" content="An AI companion that runs on your steps.">\n'
         f"{page}\n</html>\n"
     )

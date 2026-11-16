@@ -1,6 +1,6 @@
-<title>Walk2AI Waitlist</title>
+<title>Wobo Waitlist</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="An AI companion that runs on your steps. Join the waitlist.">
+<meta name="description" content="Wobo is an AI companion that runs on your steps. Join the waitlist.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..700&display=swap" data-webfont>
 <style>
 /* Layout: one scrolling page in bands; the hero pairs the pitch and sign-up with a live companion you can "walk" with a step slider. */
@@ -136,10 +136,12 @@ input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--brand);
 .pip--awake .halo, .pip--awake .cheeks { display: none; }
 .pip--grown .scarf { display: inline; }
 .pip .bob { transform-box: fill-box; transform-origin: 50% 100%; }
-.pip--bright .bob { animation: bounce 1.6s ease-in-out infinite; }
+.pip--bright .bob { animation: wobble 1.3s ease-in-out infinite; }
+.pip--awake .bob { animation: sway 3.2s ease-in-out infinite; }
 .pip--sleepy .bob { animation: breathe 3.2s ease-in-out infinite; }
 .pip--bright .halo { animation: glow 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes wobble { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
 @keyframes breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.02, 0.98); } }
 @keyframes glow { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { .pip .bob, .pip .halo { animation: none !important; } .bar > div { transition: none; } }
@@ -190,7 +192,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
   <div class="wrap">
     <a class="mark" href="#top" id="top">
       <svg viewBox="0 0 200 200" aria-hidden="true"><rect x="42" y="58" width="116" height="120" rx="58" fill="#7DD3AE"></rect><line x1="100" y1="58" x2="100" y2="32" stroke="#3C8C68" stroke-width="8" stroke-linecap="round"></line><circle cx="100" cy="26" r="13" fill="#FFC93C"></circle><circle cx="80" cy="102" r="10" fill="#13241B"></circle><circle cx="120" cy="102" r="10" fill="#13241B"></circle></svg>
-      <span>Walk2AI</span>
+      <span>Wobo</span>
     </a>
     <div class="langs" role="group" aria-label="Language">
       <button type="button" id="lang-en" aria-pressed="true" lang="en">EN</button>
@@ -206,7 +208,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
     <div class="pitch">
       <span class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-l="en" lang="en">In development · join the waitlist</span><span data-l="pt" lang="pt-PT">Em desenvolvimento · entra na lista de espera</span></span>
       <h1 id="hero-title"><span data-l="en" lang="en">Your AI runs on your <em>steps</em>.</span><span data-l="pt" lang="pt-PT">A tua IA funciona com os teus <em>passos</em>.</span></h1>
-      <p class="lede"><span data-l="en" lang="en">Meet your companion. It helps with anything you ask, but it needs walks to keep going. Move more, and it has more to say.</span><span data-l="pt" lang="pt-PT">Conhece o teu companheiro. Ajuda-te com tudo o que perguntares, mas precisa de passeios para continuar. Quanto mais te mexes, mais ele tem para dizer.</span></p>
+      <p class="lede"><span data-l="en" lang="en">Meet Wobo, your AI companion. It helps with anything you ask, but it needs walks to keep going. Move more, and it has more to say.</span><span data-l="pt" lang="pt-PT">Conhece o Wobo, o teu companheiro de IA. Ajuda-te com tudo o que perguntares, mas precisa de passeios para continuar. Quanto mais te mexes, mais ele tem para dizer.</span></p>
 
       <form class="signup" id="waitlist" name="waitlist" method="POST" data-netlify="true" netlify-honeypot="company" novalidate>
         <input type="hidden" name="form-name" value="waitlist">
@@ -229,7 +231,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
         </fieldset>
         <label class="consent" for="f-consent">
           <input type="checkbox" id="f-consent" name="consent" value="yes" required>
-          <span><span data-l="en" lang="en">Email me about Walk2AI and occasionally ask for my opinion. I can unsubscribe at any time. <a href="#privacy">How my data is used</a>.</span><span data-l="pt" lang="pt-PT">Quero receber emails sobre o Walk2AI e, de vez em quando, dar a minha opinião. Posso cancelar a qualquer momento. <a href="#privacy">Como os meus dados são usados</a>.</span></span>
+          <span><span data-l="en" lang="en">Email me about Wobo and occasionally ask for my opinion. I can unsubscribe at any time. <a href="#privacy">How my data is used</a>.</span><span data-l="pt" lang="pt-PT">Quero receber emails sobre o Wobo e, de vez em quando, dar a minha opinião. Posso cancelar a qualquer momento. <a href="#privacy">Como os meus dados são usados</a>.</span></span>
         </label>
         <p class="status" id="f-status" role="status" aria-live="polite"></p>
       </form>
@@ -239,7 +241,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
       <h2 id="demo-title" class="mood"><span id="mood-text">Awake and ready to help.</span></h2>
       <div class="stage">
         <svg class="pip pip--awake" id="demo-pip" viewBox="0 0 200 200" role="img" aria-labelledby="demo-pip-label">
-          <title id="demo-pip-label">Pip, an example companion</title>
+          <title id="demo-pip-label">A Wobo</title>
           <ellipse cx="100" cy="188" rx="50" ry="7" style="fill: var(--shadow)"></ellipse>
           <g class="bob">
             <g class="body-parts">
@@ -293,7 +295,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
         </svg>
         <span class="n">01</span>
         <h3><span data-l="en" lang="en">Walk</span><span data-l="pt" lang="pt-PT">Caminha</span></h3>
-        <p><span data-l="en" lang="en">Every step charges your companion. About 10,000 steps fill the battery, and a workout gives it a boost.</span><span data-l="pt" lang="pt-PT">Cada passo carrega o teu companheiro. Cerca de 10 000 passos enchem a bateria, e um treino dá-lhe um empurrão.</span></p>
+        <p><span data-l="en" lang="en">Every step charges your Wobo. About 10,000 steps fill the battery, and a workout gives it a boost.</span><span data-l="pt" lang="pt-PT">Cada passo carrega o teu Wobo. Cerca de 10 000 passos enchem a bateria, e um treino dá-lhe um empurrão.</span></p>
       </li>
       <li>
         <svg class="pip pip--awake" viewBox="0 0 200 200" aria-hidden="true">
@@ -327,7 +329,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
   <div class="wrap crew">
     <div class="section-head" style="margin-bottom: 0">
       <h2 id="crew-title"><span data-l="en" lang="en">Walk together</span><span data-l="pt" lang="pt-PT">Caminhem juntos</span></h2>
-      <p><span data-l="en" lang="en">Start a crew with friends. Everyone's steps count towards a weekly goal, and when you reach it, every companion in the crew unlocks something new. No one wants to be the one who didn't walk.</span><span data-l="pt" lang="pt-PT">Cria um grupo com amigos. Os passos de todos contam para um objetivo semanal e, quando o atingem, todos os companheiros do grupo desbloqueiam algo novo. Ninguém quer ser quem não caminhou.</span></p>
+      <p><span data-l="en" lang="en">Start a crew with friends. Everyone's steps count towards a weekly goal, and when you reach it, every Wobo in the crew unlocks something new. No one wants to be the one who didn't walk.</span><span data-l="pt" lang="pt-PT">Cria um grupo com amigos. Os passos de todos contam para um objetivo semanal e, quando o atingem, todos os Wobos do grupo desbloqueiam algo novo. Ninguém quer ser quem não caminhou.</span></p>
     </div>
     <div class="crew-card" role="group" aria-label="Example crew">
       <div class="head"><span class="name"><span data-l="en" lang="en">The Tuesday Walkers</span><span data-l="pt" lang="pt-PT">Os Caminhantes de Terça</span></span><span class="example"><span data-l="en" lang="en">Example</span><span data-l="pt" lang="pt-PT">Exemplo</span></span></div>
@@ -339,7 +341,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
       </div>
       <div class="bar" role="img" aria-label="41,200 of 50,000 steps this week"><div></div></div>
       <div class="figures"><span><span data-l="en" lang="en">41,200 of 50,000 steps</span><span data-l="pt" lang="pt-PT">41 200 de 50 000 passos</span></span><span><span data-l="en" lang="en">2 days left</span><span data-l="pt" lang="pt-PT">faltam 2 dias</span></span></div>
-      <p class="reward"><span data-l="en" lang="en">At the goal, every companion in the crew gets a new scarf. One of them is still asleep.</span><span data-l="pt" lang="pt-PT">Ao atingir o objetivo, todos os companheiros do grupo ganham um cachecol novo. Um deles ainda está a dormir.</span></p>
+      <p class="reward"><span data-l="en" lang="en">At the goal, every Wobo in the crew gets a new scarf. One of them is still asleep.</span><span data-l="pt" lang="pt-PT">Ao atingir o objetivo, todos os Wobos do grupo ganham um cachecol novo. Um deles ainda está a dormir.</span></p>
     </div>
   </div>
 </section>
@@ -364,7 +366,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
       </div>
       <div>
         <h3><span data-l="en" lang="en">What will it know about me?</span><span data-l="pt" lang="pt-PT">O que fica a saber sobre mim?</span></h3>
-        <p><span data-l="en" lang="en">Only your step counts and workouts, to charge your companion. Never your location. Your data is never sold, and you can delete it whenever you like.</span><span data-l="pt" lang="pt-PT">Só os teus passos e treinos, para carregar o companheiro. Nunca a tua localização. Os teus dados nunca são vendidos e podes apagá-los quando quiseres.</span></p>
+        <p><span data-l="en" lang="en">Only your step counts and workouts, to charge your Wobo. Never your location. Your data is never sold, and you can delete it whenever you like.</span><span data-l="pt" lang="pt-PT">Só os teus passos e treinos, para carregar o teu Wobo. Nunca a tua localização. Os teus dados nunca são vendidos e podes apagá-los quando quiseres.</span></p>
       </div>
       <div>
         <h3><span data-l="en" lang="en">When can I try it?</span><span data-l="pt" lang="pt-PT">Quando posso experimentar?</span></h3>
@@ -385,13 +387,13 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
     </div>
     <div class="privacy">
       <dl>
-        <div><dt><span data-l="en" lang="en">Who is responsible</span><span data-l="pt" lang="pt-PT">Responsável</span></dt><dd><span class="todo" data-fill="controller_name">[your name]</span>, <span data-l="en" lang="en">who runs Walk2AI. Contact:</span><span data-l="pt" lang="pt-PT">que gere o Walk2AI. Contacto:</span> <span class="todo" data-fill="contact_email">[your contact email]</span></dd></div>
+        <div><dt><span data-l="en" lang="en">Who is responsible</span><span data-l="pt" lang="pt-PT">Responsável</span></dt><dd><span class="todo" data-fill="controller_name">[your name]</span>, <span data-l="en" lang="en">who runs Wobo. Contact:</span><span data-l="pt" lang="pt-PT">que gere o Wobo. Contacto:</span> <span class="todo" data-fill="contact_email">[your contact email]</span></dd></div>
         <div><dt><span data-l="en" lang="en">What is collected</span><span data-l="pt" lang="pt-PT">O que é recolhido</span></dt><dd><span data-l="en" lang="en">Your email address, your answer to the price question if you give one, and the language you used.</span><span data-l="pt" lang="pt-PT">O teu email, a tua resposta à pergunta sobre o preço (se responderes) e o idioma que usaste.</span></dd></div>
-        <div><dt><span data-l="en" lang="en">Why</span><span data-l="pt" lang="pt-PT">Para quê</span></dt><dd><span data-l="en" lang="en">To tell you about Walk2AI and, now and then, ask what you think. The legal basis is your consent.</span><span data-l="pt" lang="pt-PT">Para te dar notícias do Walk2AI e, de vez em quando, perguntar a tua opinião. A base legal é o teu consentimento.</span></dd></div>
+        <div><dt><span data-l="en" lang="en">Why</span><span data-l="pt" lang="pt-PT">Para quê</span></dt><dd><span data-l="en" lang="en">To tell you about Wobo and, now and then, ask what you think. The legal basis is your consent.</span><span data-l="pt" lang="pt-PT">Para te dar notícias do Wobo e, de vez em quando, perguntar a tua opinião. A base legal é o teu consentimento.</span></dd></div>
       </dl>
       <dl>
-        <div><dt><span data-l="en" lang="en">Where it is kept</span><span data-l="pt" lang="pt-PT">Onde fica guardado</span></dt><dd><span data-l="en" lang="en">With the website's host,</span><span data-l="pt" lang="pt-PT">No serviço que aloja o site,</span> <span class="todo" data-fill="host">[hosting provider]</span><span data-l="en" lang="en">, which stores it on Walk2AI's behalf. It is never sold or shared for marketing.</span><span data-l="pt" lang="pt-PT">, que os guarda em nome do Walk2AI. Nunca são vendidos nem partilhados para marketing.</span></dd></div>
-        <div><dt><span data-l="en" lang="en">How long</span><span data-l="pt" lang="pt-PT">Durante quanto tempo</span></dt><dd><span data-l="en" lang="en">Until Walk2AI launches or the project stops, and never more than 12 months. Then it is deleted.</span><span data-l="pt" lang="pt-PT">Até o Walk2AI ser lançado ou o projeto parar, e nunca mais de 12 meses. Depois é apagado.</span></dd></div>
+        <div><dt><span data-l="en" lang="en">Where it is kept</span><span data-l="pt" lang="pt-PT">Onde fica guardado</span></dt><dd><span data-l="en" lang="en">With the website's host,</span><span data-l="pt" lang="pt-PT">No serviço que aloja o site,</span> <span class="todo" data-fill="host">[hosting provider]</span><span data-l="en" lang="en">, which stores it on Wobo's behalf. It is never sold or shared for marketing.</span><span data-l="pt" lang="pt-PT">, que os guarda em nome do Wobo. Nunca são vendidos nem partilhados para marketing.</span></dd></div>
+        <div><dt><span data-l="en" lang="en">How long</span><span data-l="pt" lang="pt-PT">Durante quanto tempo</span></dt><dd><span data-l="en" lang="en">Until Wobo launches or the project stops, and never more than 12 months. Then it is deleted.</span><span data-l="pt" lang="pt-PT">Até o Wobo ser lançado ou o projeto parar, e nunca mais de 12 meses. Depois é apagado.</span></dd></div>
         <div><dt><span data-l="en" lang="en">Your rights</span><span data-l="pt" lang="pt-PT">Os teus direitos</span></dt><dd><span data-l="en" lang="en">Ask by email to see, correct or delete your data, or to withdraw your consent, at any time. You can also complain to the Portuguese data protection authority (CNPD).</span><span data-l="pt" lang="pt-PT">Podes pedir por email para ver, corrigir ou apagar os teus dados, ou retirar o consentimento, a qualquer momento. Podes também apresentar queixa à CNPD (Comissão Nacional de Proteção de Dados).</span></dd></div>
       </dl>
     </div>
@@ -402,7 +404,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
 
 <footer>
   <div class="wrap">
-    <span><span data-l="en" lang="en">Walk2AI is an independent project in development.</span><span data-l="pt" lang="pt-PT">O Walk2AI é um projeto independente em desenvolvimento.</span></span>
+    <span><span data-l="en" lang="en">Wobo is an independent project in development.</span><span data-l="pt" lang="pt-PT">O Wobo é um projeto independente em desenvolvimento.</span></span>
     <a href="#privacy"><span data-l="en" lang="en">Privacy</span><span data-l="pt" lang="pt-PT">Privacidade</span></a>
   </div>
 </footer>
@@ -421,7 +423,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
 
   var TEXT = {
     en: {
-      sleepy: "Sleepy. Pip needs a walk.",
+      sleepy: "Sleepy. Your Wobo needs a walk.",
       awake: "Awake and ready to help.",
       bright: "Fully charged. Ask it anything.",
       energy: "Energy",
@@ -435,7 +437,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
       htmlLang: "en"
     },
     pt: {
-      sleepy: "Com sono. O Pip precisa de um passeio.",
+      sleepy: "Com sono. O teu Wobo precisa de um passeio.",
       awake: "Acordado e pronto para ajudar.",
       bright: "Carregado. Pergunta-lhe o que quiseres.",
       energy: "Energia",
@@ -488,12 +490,12 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
     document.getElementById("lang-en").setAttribute("aria-pressed", String(lang === "en"));
     document.getElementById("lang-pt").setAttribute("aria-pressed", String(lang === "pt"));
     document.getElementById("f-lang").value = lang;
-    try { localStorage.setItem("walk2ai-lang", lang); } catch (e) { /* storage may be unavailable */ }
+    try { localStorage.setItem("wobo-lang", lang); } catch (e) { /* storage may be unavailable */ }
     update();
   }
 
   var saved = null;
-  try { saved = localStorage.getItem("walk2ai-lang"); } catch (e) { saved = null; }
+  try { saved = localStorage.getItem("wobo-lang"); } catch (e) { saved = null; }
   var browser = (navigator.language || "en").toLowerCase();
   setLang(saved || (browser.indexOf("pt") === 0 ? "pt" : "en"));
 

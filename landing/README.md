@@ -1,4 +1,4 @@
-# Walk2AI waitlist page
+# Wobo waitlist page
 
 The page that tests the "Walk your AI" concept ([docs/business/CONCEPT.md](../docs/business/CONCEPT.md)):
 one sentence, a companion you can try with a step slider, and an email sign-up with one
@@ -23,7 +23,7 @@ relying on it — they change.
 
 The privacy notice must name who is responsible for the email addresses and how to
 reach them. Both appear **publicly** on the page. Consider a dedicated email address for
-Walk2AI rather than your personal one.
+Wobo rather than your personal one.
 
 ### 2. Fill in your settings
 
@@ -81,11 +81,16 @@ no confirmation to the page, so test once by hand.
 
 ## Before you share it
 
-- **Check the name.** Search the app stores and the EU trademark register (EUIPO's
-  eSearch) for "Walk2AI" before promoting it.
+- **Check the name "Wobo" for every market you want**, before promoting it:
+  - trademarks: WIPO's Global Brand Database (worldwide), EUIPO eSearch (EU) and the
+    USPTO search (US), in the classes for software (9) and online services (42);
+  - Google Play and the App Store, searched from more than one country;
+  - domains (`wobo.app`, `wobo.com`, or a variant such as `getwobo.com`) and the social
+    handles you'd want;
+  - quick searches for meanings in other languages you plan to reach.
 - **Send yourself a test sign-up** and check it arrives.
 - **Read the privacy section on the live page.** It must match what you actually do with
-  the addresses: only Walk2AI news and occasional questions, deleted within 12 months.
+  the addresses: only Wobo news and occasional questions, deleted within 12 months.
   This page was written carefully but is not legal advice.
 
 ## What to measure (from the concept, section 10)
