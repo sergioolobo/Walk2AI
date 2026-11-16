@@ -1,0 +1,560 @@
+<title>Walk2AI Waitlist</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="An AI companion that runs on your steps. Join the waitlist.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..700&display=swap" data-webfont>
+<style>
+/* Layout: one scrolling page in bands; the hero pairs the pitch and sign-up with a live companion you can "walk" with a step slider. */
+:root {
+  --bg: #F3F6F1;
+  --surface: #FFFFFF;
+  --ink: #13241B;
+  --muted: #4B5E53;
+  --line: #D5DED6;
+  --brand: #1D6A44;
+  --brand-ink: #FFFFFF;
+  --link: #1D6A44;
+  --energy: #F2B000;
+  --energy-soft: #FFF1C2;
+  --track: #E2E9E3;
+  --todo: #FFE39A;
+  --todo-ink: #3D2E00;
+  --danger: #A8321F;
+  /* The companion keeps its colours in both themes. */
+  --pip: #7DD3AE;
+  --pip-dark: #3C8C68;
+  --pip-belly: #C3EDD8;
+  --pip-face: #13241B;
+  --pip-glow: #FFC93C;
+  --pip-cheek: #F2909F;
+  --pip-scarf: #E0603F;
+  --shadow: rgba(19, 36, 27, 0.12);
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --text: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1813; --surface: #15231B; --ink: #E7F0EA; --muted: #A2B4A9; --line: #283A30;
+    --brand: #7FD9A9; --brand-ink: #0B1510; --link: #8FE3B6; --energy: #FFC93C;
+    --energy-soft: #3B3214; --track: #22332A; --todo: #5C4A12; --todo-ink: #FFE9A8;
+    --danger: #FF9A85; --shadow: rgba(0, 0, 0, 0.35); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1813; --surface: #15231B; --ink: #E7F0EA; --muted: #A2B4A9; --line: #283A30;
+  --brand: #7FD9A9; --brand-ink: #0B1510; --link: #8FE3B6; --energy: #FFC93C;
+  --energy-soft: #3B3214; --track: #22332A; --todo: #5C4A12; --todo-ink: #FFE9A8;
+  --danger: #FF9A85; --shadow: rgba(0, 0, 0, 0.35); color-scheme: dark;
+}
+
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--text); font-size: 17px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+a { color: var(--link); text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.08; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+
+.site[data-lang="en"] [data-l="pt"], .site[data-lang="pt"] [data-l="en"] { display: none; }
+
+.wrap {
+  max-width: 1120px; margin: 0 auto; box-sizing: border-box;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+}
+.band { padding-block: 72px; }
+.band + .band { border-top: 1px solid var(--line); }
+
+/* Header */
+.top { padding-block: 20px; }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.mark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-family: var(--display); font-weight: 700; font-size: 21px; letter-spacing: -0.01em; }
+.mark svg { width: 34px; height: 34px; }
+.langs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.langs button { font: inherit; font-size: 14px; font-weight: 600; min-width: 44px; min-height: 36px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
+.langs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+/* Hero */
+.hero { padding-block: 40px 80px; }
+.hero .wrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 48px; align-items: center; }
+.pitch { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: var(--energy-soft); color: var(--ink); font-size: 14px; font-weight: 600; }
+.eyebrow .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--energy); }
+.hero h1 { font-size: clamp(42px, 6.4vw, 76px); font-weight: 800; letter-spacing: -0.035em; }
+.hero h1 em { font-style: normal; text-decoration: underline; text-decoration-color: var(--energy); text-decoration-thickness: 0.14em; text-underline-offset: 0.1em; text-decoration-skip-ink: none; }
+.lede { font-size: 20px; color: var(--muted); max-width: 34ch; }
+
+/* Form */
+.signup { display: flex; flex-direction: column; gap: 16px; padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); max-width: 520px; box-sizing: border-box; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px; min-width: 0; }
+.label { font-size: 14px; font-weight: 600; }
+input[type="email"] { font: inherit; font-size: 17px; min-height: 50px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); box-sizing: border-box; width: 100%; }
+input[type="email"]:focus { border-color: var(--brand); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); }
+.cta { font: inherit; font-weight: 700; font-size: 17px; min-height: 50px; padding: 0 22px; border: 0; border-radius: 12px; background: var(--brand); color: var(--brand-ink); cursor: pointer; align-self: flex-end; flex: 0 0 auto; }
+.cta:hover { filter: brightness(1.08); }
+.cta[disabled] { opacity: 0.6; cursor: progress; }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+legend { padding: 0; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice { position: relative; }
+.choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.choice span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 999px; font-size: 15px; font-weight: 500; }
+.choice input:checked + span { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); }
+.choice input:focus-visible + span { outline: 3px solid var(--brand); outline-offset: 2px; }
+.consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--muted); }
+.consent input { width: 20px; height: 20px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--brand); }
+.status { font-size: 15px; font-weight: 500; min-height: 1.5em; }
+.status.ok { color: var(--brand); }
+.status.err { color: var(--danger); }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.small { font-size: 14px; color: var(--muted); }
+
+/* Companion demo */
+.demo { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 28px; border: 1px solid var(--line); border-radius: 28px; background: var(--surface); box-shadow: 0 30px 60px -40px var(--shadow); min-width: 0; }
+.demo .stage { width: 100%; display: flex; justify-content: center; background: radial-gradient(circle at 50% 70%, var(--energy-soft), transparent 65%); border-radius: 20px; padding-block: 8px; }
+.demo .pip { width: min(260px, 70vw); height: auto; }
+.mood { font-family: var(--display); font-size: 22px; font-weight: 700; text-align: center; }
+.meter { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.meter-head { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; font-weight: 600; }
+.meter-head .val { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.bar { height: 16px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.bar > div { height: 100%; width: 64%; border-radius: 999px; background: var(--energy); transition: width 0.25s ease; }
+.ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.slider { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.slider label { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; font-weight: 600; }
+.slider output { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; min-height: 44px; accent-color: var(--brand); margin: 0; }
+.talk { font-size: 15px; color: var(--muted); text-align: center; }
+.talk strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* Companion parts and states */
+.pip .eyes-closed, .pip .zz, .pip .mouth-flat, .pip .scarf { display: none; }
+.pip--sleepy .eyes-open, .pip--sleepy .mouth-smile, .pip--sleepy .cheeks, .pip--sleepy .halo { display: none; }
+.pip--sleepy .eyes-closed, .pip--sleepy .zz, .pip--sleepy .mouth-flat { display: inline; }
+.pip--sleepy .light { fill: var(--pip-dark); }
+.pip--sleepy .body-parts { filter: saturate(0.5); }
+.pip--awake .halo, .pip--awake .cheeks { display: none; }
+.pip--grown .scarf { display: inline; }
+.pip .bob { transform-box: fill-box; transform-origin: 50% 100%; }
+.pip--bright .bob { animation: bounce 1.6s ease-in-out infinite; }
+.pip--sleepy .bob { animation: breathe 3.2s ease-in-out infinite; }
+.pip--bright .halo { animation: glow 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.02, 0.98); } }
+@keyframes glow { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .pip .bob, .pip .halo { animation: none !important; } .bar > div { transition: none; } }
+
+/* How it works */
+.section-head { display: flex; flex-direction: column; gap: 12px; max-width: 640px; margin-bottom: 40px; }
+.section-head h2 { font-size: clamp(32px, 4.4vw, 48px); font-weight: 800; }
+.section-head p { font-size: 19px; color: var(--muted); }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 20px; list-style: none; margin: 0; padding: 0; }
+.steps li { display: flex; flex-direction: column; gap: 12px; padding: 24px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); }
+.steps .pip { width: 120px; height: auto; align-self: flex-start; }
+.steps .n { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--muted); }
+.steps h3 { font-size: 26px; font-weight: 700; }
+.steps p { color: var(--muted); }
+
+/* Crews */
+.crew { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 40px; align-items: center; }
+.crew-card { display: flex; flex-direction: column; gap: 16px; padding: 26px; border-radius: 24px; background: var(--ink); color: var(--bg); min-width: 0; }
+.crew-card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.crew-card .name { font-family: var(--display); font-size: 22px; font-weight: 700; }
+.crew-card .example { font-size: 13px; opacity: 0.75; }
+.members { display: flex; gap: 6px; }
+.members svg { width: 64px; height: auto; }
+.crew-card .bar { background: color-mix(in srgb, var(--bg) 18%, transparent); }
+.crew-card .bar > div { width: 82%; }
+.crew-card .figures { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 14px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.crew-card .reward { font-size: 15px; }
+
+/* Questions */
+.faq { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 28px 40px; }
+.faq div { display: flex; flex-direction: column; gap: 8px; }
+.faq h3 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.faq p { color: var(--muted); }
+
+/* Privacy and footer */
+.privacy { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 20px 40px; font-size: 15px; }
+.privacy dt { font-weight: 700; }
+.privacy dd { margin: 4px 0 0; color: var(--muted); }
+.privacy dl { margin: 0; display: flex; flex-direction: column; gap: 16px; }
+.todo { background: var(--todo); color: var(--todo-ink); padding: 0 4px; border-radius: 4px; font-weight: 600; }
+footer { padding-block: 32px 48px; border-top: 1px solid var(--line); }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; font-size: 14px; color: var(--muted); }
+</style>
+
+<div class="site" data-lang="en">
+
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#top" id="top">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><rect x="42" y="58" width="116" height="120" rx="58" fill="#7DD3AE"></rect><line x1="100" y1="58" x2="100" y2="32" stroke="#3C8C68" stroke-width="8" stroke-linecap="round"></line><circle cx="100" cy="26" r="13" fill="#FFC93C"></circle><circle cx="80" cy="102" r="10" fill="#13241B"></circle><circle cx="120" cy="102" r="10" fill="#13241B"></circle></svg>
+      <span>Walk2AI</span>
+    </a>
+    <div class="langs" role="group" aria-label="Language">
+      <button type="button" id="lang-en" aria-pressed="true" lang="en">EN</button>
+      <button type="button" id="lang-pt" aria-pressed="false" lang="pt-PT">PT</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="wrap">
+    <div class="pitch">
+      <span class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-l="en" lang="en">In development · join the waitlist</span><span data-l="pt" lang="pt-PT">Em desenvolvimento · entra na lista de espera</span></span>
+      <h1 id="hero-title"><span data-l="en" lang="en">Your AI runs on your <em>steps</em>.</span><span data-l="pt" lang="pt-PT">A tua IA funciona com os teus <em>passos</em>.</span></h1>
+      <p class="lede"><span data-l="en" lang="en">Meet your companion. It helps with anything you ask, but it needs walks to keep going. Move more, and it has more to say.</span><span data-l="pt" lang="pt-PT">Conhece o teu companheiro. Ajuda-te com tudo o que perguntares, mas precisa de passeios para continuar. Quanto mais te mexes, mais ele tem para dizer.</span></p>
+
+      <form class="signup" id="waitlist" name="waitlist" method="POST" data-netlify="true" netlify-honeypot="company" novalidate>
+        <input type="hidden" name="form-name" value="waitlist">
+        <input type="hidden" name="lang" id="f-lang" value="en">
+        <p class="hp"><label>Company <input name="company" id="f-company" tabindex="-1" autocomplete="off"></label></p>
+        <div class="row">
+          <div class="field">
+            <label class="label" for="f-email"><span data-l="en" lang="en">Email</span><span data-l="pt" lang="pt-PT">Email</span></label>
+            <input type="email" id="f-email" name="email" required autocomplete="email" inputmode="email" spellcheck="false">
+          </div>
+          <button class="cta" type="submit" id="f-submit"><span data-l="en" lang="en">Join the waitlist</span><span data-l="pt" lang="pt-PT">Entrar na lista</span></button>
+        </div>
+        <fieldset>
+          <legend><span data-l="en" lang="en">Would you pay about €4 a month for it? (optional)</span><span data-l="pt" lang="pt-PT">Pagarias cerca de 4 € por mês por isto? (opcional)</span></legend>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="would_pay" value="yes" id="f-pay-yes"><span><span data-l="en" lang="en">Yes</span><span data-l="pt" lang="pt-PT">Sim</span></span></label>
+            <label class="choice"><input type="radio" name="would_pay" value="maybe" id="f-pay-maybe"><span><span data-l="en" lang="en">Maybe</span><span data-l="pt" lang="pt-PT">Talvez</span></span></label>
+            <label class="choice"><input type="radio" name="would_pay" value="no" id="f-pay-no"><span><span data-l="en" lang="en">No</span><span data-l="pt" lang="pt-PT">Não</span></span></label>
+          </div>
+        </fieldset>
+        <label class="consent" for="f-consent">
+          <input type="checkbox" id="f-consent" name="consent" value="yes" required>
+          <span><span data-l="en" lang="en">Email me about Walk2AI and occasionally ask for my opinion. I can unsubscribe at any time. <a href="#privacy">How my data is used</a>.</span><span data-l="pt" lang="pt-PT">Quero receber emails sobre o Walk2AI e, de vez em quando, dar a minha opinião. Posso cancelar a qualquer momento. <a href="#privacy">Como os meus dados são usados</a>.</span></span>
+        </label>
+        <p class="status" id="f-status" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+
+    <section class="demo" aria-labelledby="demo-title">
+      <h2 id="demo-title" class="mood"><span id="mood-text">Awake and ready to help.</span></h2>
+      <div class="stage">
+        <svg class="pip pip--awake" id="demo-pip" viewBox="0 0 200 200" role="img" aria-labelledby="demo-pip-label">
+          <title id="demo-pip-label">Pip, an example companion</title>
+          <ellipse cx="100" cy="188" rx="50" ry="7" style="fill: var(--shadow)"></ellipse>
+          <g class="bob">
+            <g class="body-parts">
+              <ellipse cx="78" cy="176" rx="17" ry="10" style="fill: var(--pip-dark)"></ellipse>
+              <ellipse cx="122" cy="176" rx="17" ry="10" style="fill: var(--pip-dark)"></ellipse>
+              <rect x="42" y="58" width="116" height="120" rx="58" style="fill: var(--pip)"></rect>
+              <ellipse cx="100" cy="152" rx="34" ry="20" style="fill: var(--pip-belly)"></ellipse>
+              <line x1="100" y1="60" x2="100" y2="34" stroke-width="5" stroke-linecap="round" style="stroke: var(--pip-dark)"></line>
+              <circle class="halo" cx="100" cy="27" r="17" opacity="0.35" style="fill: var(--pip-glow)"></circle>
+              <circle class="light" cx="100" cy="27" r="9" style="fill: var(--pip-glow)"></circle>
+            </g>
+            <g class="eyes-open"><circle cx="80" cy="100" r="9" style="fill: var(--pip-face)"></circle><circle cx="120" cy="100" r="9" style="fill: var(--pip-face)"></circle><circle cx="83" cy="96" r="3" fill="#FFFFFF"></circle><circle cx="123" cy="96" r="3" fill="#FFFFFF"></circle></g>
+            <g class="eyes-closed"><path d="M71 101 q9 7 18 0" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path><path d="M111 101 q9 7 18 0" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path></g>
+            <path class="mouth-smile" d="M90 118 q10 9 20 0" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path>
+            <path class="mouth-flat" d="M94 121 h12" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path>
+            <g class="cheeks"><circle cx="68" cy="114" r="7" opacity="0.75" style="fill: var(--pip-cheek)"></circle><circle cx="132" cy="114" r="7" opacity="0.75" style="fill: var(--pip-cheek)"></circle></g>
+            <g class="zz" font-weight="700" style="fill: var(--muted); font-family: var(--display)"><text x="142" y="56" font-size="24">z</text><text x="160" y="38" font-size="17">z</text></g>
+          </g>
+        </svg>
+      </div>
+      <div class="meter">
+        <div class="meter-head"><span><span data-l="en" lang="en">Energy</span><span data-l="pt" lang="pt-PT">Energia</span></span><span class="val" id="energy-val">64%</span></div>
+        <div class="bar" role="meter" id="energy-meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="64" aria-labelledby="energy-label"><div id="energy-fill"></div></div>
+        <span id="energy-label" class="hp">Energy</span>
+      </div>
+      <div class="slider">
+        <label for="steps"><span><span data-l="en" lang="en">Steps today (try it)</span><span data-l="pt" lang="pt-PT">Passos hoje (experimenta)</span></span><output id="steps-out" for="steps">6,400</output></label>
+        <input type="range" id="steps" min="0" max="10000" step="100" value="6400">
+        <div class="ticks" aria-hidden="true"><span>0</span><span>5k</span><span>10k</span></div>
+      </div>
+      <p class="talk" id="talk-text"><span data-l="en" lang="en">Enough for about <strong class="msgs">32</strong> short messages.</span><span data-l="pt" lang="pt-PT">Dá para cerca de <strong class="msgs">32</strong> mensagens curtas.</span></p>
+    </section>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="how-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="how-title"><span data-l="en" lang="en">How it works</span><span data-l="pt" lang="pt-PT">Como funciona</span></h2>
+      <p><span data-l="en" lang="en">Like a dog, it needs walks. Unlike a dog, it helps you with anything.</span><span data-l="pt" lang="pt-PT">Como um cão, precisa de passear. Ao contrário de um cão, ajuda-te com tudo.</span></p>
+    </div>
+    <ol class="steps">
+      <li>
+        <svg class="pip pip--sleepy" viewBox="0 0 200 200" aria-hidden="true">
+          <ellipse cx="100" cy="188" rx="50" ry="7" style="fill: var(--shadow)"></ellipse>
+          <g class="bob"><g class="body-parts"><ellipse cx="78" cy="176" rx="17" ry="10" style="fill: var(--pip-dark)"></ellipse><ellipse cx="122" cy="176" rx="17" ry="10" style="fill: var(--pip-dark)"></ellipse><rect x="42" y="58" width="116" height="120" rx="58" style="fill: var(--pip)"></rect><ellipse cx="100" cy="152" rx="34" ry="20" style="fill: var(--pip-belly)"></ellipse><line x1="100" y1="60" x2="100" y2="34" stroke-width="5" stroke-linecap="round" style="stroke: var(--pip-dark)"></line><circle class="halo" cx="100" cy="27" r="17" opacity="0.35" style="fill: var(--pip-glow)"></circle><circle class="light" cx="100" cy="27" r="9" style="fill: var(--pip-glow)"></circle></g>
+          <g class="eyes-open"><circle cx="80" cy="100" r="9" style="fill: var(--pip-face)"></circle><circle cx="120" cy="100" r="9" style="fill: var(--pip-face)"></circle></g>
+          <g class="eyes-closed"><path d="M71 101 q9 7 18 0" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path><path d="M111 101 q9 7 18 0" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path></g>
+          <path class="mouth-smile" d="M90 118 q10 9 20 0" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path><path class="mouth-flat" d="M94 121 h12" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path>
+          <g class="zz" font-weight="700" style="fill: var(--muted); font-family: var(--display)"><text x="142" y="56" font-size="24">z</text><text x="160" y="38" font-size="17">z</text></g></g>
+        </svg>
+        <span class="n">01</span>
+        <h3><span data-l="en" lang="en">Walk</span><span data-l="pt" lang="pt-PT">Caminha</span></h3>
+        <p><span data-l="en" lang="en">Every step charges your companion. About 10,000 steps fill the battery, and a workout gives it a boost.</span><span data-l="pt" lang="pt-PT">Cada passo carrega o teu companheiro. Cerca de 10 000 passos enchem a bateria, e um treino dá-lhe um empurrão.</span></p>
+      </li>
+      <li>
+        <svg class="pip pip--awake" viewBox="0 0 200 200" aria-hidden="true">
+          <ellipse cx="100" cy="188" rx="50" ry="7" style="fill: var(--shadow)"></ellipse>
+          <g class="bob"><g class="body-parts"><ellipse cx="78" cy="176" rx="17" ry="10" style="fill: var(--pip-dark)"></ellipse><ellipse cx="122" cy="176" rx="17" ry="10" style="fill: var(--pip-dark)"></ellipse><rect x="42" y="58" width="116" height="120" rx="58" style="fill: var(--pip)"></rect><ellipse cx="100" cy="152" rx="34" ry="20" style="fill: var(--pip-belly)"></ellipse><line x1="100" y1="60" x2="100" y2="34" stroke-width="5" stroke-linecap="round" style="stroke: var(--pip-dark)"></line><circle class="light" cx="100" cy="27" r="9" style="fill: var(--pip-glow)"></circle></g>
+          <g class="eyes-open"><circle cx="80" cy="100" r="9" style="fill: var(--pip-face)"></circle><circle cx="120" cy="100" r="9" style="fill: var(--pip-face)"></circle><circle cx="83" cy="96" r="3" fill="#FFFFFF"></circle><circle cx="123" cy="96" r="3" fill="#FFFFFF"></circle></g>
+          <path class="mouth-smile" d="M90 118 q10 9 20 0" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path></g>
+        </svg>
+        <span class="n">02</span>
+        <h3><span data-l="en" lang="en">Talk</span><span data-l="pt" lang="pt-PT">Conversa</span></h3>
+        <p><span data-l="en" lang="en">Ask it anything: plans, ideas, questions, a second opinion. Each message uses a little energy.</span><span data-l="pt" lang="pt-PT">Pergunta-lhe o que quiseres: planos, ideias, dúvidas, uma segunda opinião. Cada mensagem gasta um pouco de energia.</span></p>
+      </li>
+      <li>
+        <svg class="pip pip--bright pip--grown" viewBox="0 0 200 200" aria-hidden="true">
+          <ellipse cx="100" cy="188" rx="50" ry="7" style="fill: var(--shadow)"></ellipse>
+          <g class="bob"><g class="body-parts"><ellipse cx="78" cy="176" rx="17" ry="10" style="fill: var(--pip-dark)"></ellipse><ellipse cx="122" cy="176" rx="17" ry="10" style="fill: var(--pip-dark)"></ellipse><rect x="42" y="58" width="116" height="120" rx="58" style="fill: var(--pip)"></rect><ellipse cx="100" cy="152" rx="34" ry="20" style="fill: var(--pip-belly)"></ellipse><line x1="100" y1="60" x2="100" y2="34" stroke-width="5" stroke-linecap="round" style="stroke: var(--pip-dark)"></line><circle class="halo" cx="100" cy="27" r="17" opacity="0.35" style="fill: var(--pip-glow)"></circle><circle class="light" cx="100" cy="27" r="9" style="fill: var(--pip-glow)"></circle></g>
+          <g class="eyes-open"><circle cx="80" cy="100" r="9" style="fill: var(--pip-face)"></circle><circle cx="120" cy="100" r="9" style="fill: var(--pip-face)"></circle><circle cx="83" cy="96" r="3" fill="#FFFFFF"></circle><circle cx="123" cy="96" r="3" fill="#FFFFFF"></circle></g>
+          <path class="mouth-smile" d="M90 116 q10 10 20 0" fill="none" stroke-width="4" stroke-linecap="round" style="stroke: var(--pip-face)"></path>
+          <g class="cheeks"><circle cx="68" cy="112" r="7" opacity="0.75" style="fill: var(--pip-cheek)"></circle><circle cx="132" cy="112" r="7" opacity="0.75" style="fill: var(--pip-cheek)"></circle></g>
+          <g class="scarf"><rect x="45" y="128" width="110" height="15" rx="7.5" style="fill: var(--pip-scarf)"></rect><rect x="112" y="136" width="15" height="30" rx="6" transform="rotate(14 119 136)" style="fill: var(--pip-scarf)"></rect></g></g>
+        </svg>
+        <span class="n">03</span>
+        <h3><span data-l="en" lang="en">Grow</span><span data-l="pt" lang="pt-PT">Cresce</span></h3>
+        <p><span data-l="en" lang="en">Keep it charged day after day and it grows: new looks, new abilities, a personality of its own.</span><span data-l="pt" lang="pt-PT">Mantém-no carregado dia após dia e ele cresce: novos visuais, novas capacidades, uma personalidade só dele.</span></p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="crew-title">
+  <div class="wrap crew">
+    <div class="section-head" style="margin-bottom: 0">
+      <h2 id="crew-title"><span data-l="en" lang="en">Walk together</span><span data-l="pt" lang="pt-PT">Caminhem juntos</span></h2>
+      <p><span data-l="en" lang="en">Start a crew with friends. Everyone's steps count towards a weekly goal, and when you reach it, every companion in the crew unlocks something new. No one wants to be the one who didn't walk.</span><span data-l="pt" lang="pt-PT">Cria um grupo com amigos. Os passos de todos contam para um objetivo semanal e, quando o atingem, todos os companheiros do grupo desbloqueiam algo novo. Ninguém quer ser quem não caminhou.</span></p>
+    </div>
+    <div class="crew-card" role="group" aria-label="Example crew">
+      <div class="head"><span class="name"><span data-l="en" lang="en">The Tuesday Walkers</span><span data-l="pt" lang="pt-PT">Os Caminhantes de Terça</span></span><span class="example"><span data-l="en" lang="en">Example</span><span data-l="pt" lang="pt-PT">Exemplo</span></span></div>
+      <div class="members" aria-hidden="true">
+        <svg viewBox="0 0 200 200"><rect x="42" y="58" width="116" height="120" rx="58" fill="#7DD3AE"></rect><line x1="100" y1="60" x2="100" y2="34" stroke="#3C8C68" stroke-width="6" stroke-linecap="round"></line><circle cx="100" cy="27" r="11" fill="#FFC93C"></circle><circle cx="80" cy="100" r="9" fill="#13241B"></circle><circle cx="120" cy="100" r="9" fill="#13241B"></circle><path d="M90 118 q10 9 20 0" fill="none" stroke="#13241B" stroke-width="5" stroke-linecap="round"></path></svg>
+        <svg viewBox="0 0 200 200"><rect x="42" y="58" width="116" height="120" rx="58" fill="#B7A6F2"></rect><line x1="100" y1="60" x2="100" y2="34" stroke="#6A57B8" stroke-width="6" stroke-linecap="round"></line><circle cx="100" cy="27" r="11" fill="#FFC93C"></circle><circle cx="80" cy="100" r="9" fill="#13241B"></circle><circle cx="120" cy="100" r="9" fill="#13241B"></circle><path d="M90 118 q10 9 20 0" fill="none" stroke="#13241B" stroke-width="5" stroke-linecap="round"></path></svg>
+        <svg viewBox="0 0 200 200"><rect x="42" y="58" width="116" height="120" rx="58" fill="#F5B38A"></rect><line x1="100" y1="60" x2="100" y2="34" stroke="#B76A3C" stroke-width="6" stroke-linecap="round"></line><circle cx="100" cy="27" r="11" fill="#B76A3C"></circle><path d="M71 101 q9 7 18 0" fill="none" stroke="#13241B" stroke-width="5" stroke-linecap="round"></path><path d="M111 101 q9 7 18 0" fill="none" stroke="#13241B" stroke-width="5" stroke-linecap="round"></path><path d="M94 121 h12" fill="none" stroke="#13241B" stroke-width="5" stroke-linecap="round"></path></svg>
+        <svg viewBox="0 0 200 200"><rect x="42" y="58" width="116" height="120" rx="58" fill="#8EC5F2"></rect><line x1="100" y1="60" x2="100" y2="34" stroke="#3F79B0" stroke-width="6" stroke-linecap="round"></line><circle cx="100" cy="27" r="11" fill="#FFC93C"></circle><circle cx="80" cy="100" r="9" fill="#13241B"></circle><circle cx="120" cy="100" r="9" fill="#13241B"></circle><path d="M90 118 q10 9 20 0" fill="none" stroke="#13241B" stroke-width="5" stroke-linecap="round"></path></svg>
+      </div>
+      <div class="bar" role="img" aria-label="41,200 of 50,000 steps this week"><div></div></div>
+      <div class="figures"><span><span data-l="en" lang="en">41,200 of 50,000 steps</span><span data-l="pt" lang="pt-PT">41 200 de 50 000 passos</span></span><span><span data-l="en" lang="en">2 days left</span><span data-l="pt" lang="pt-PT">faltam 2 dias</span></span></div>
+      <p class="reward"><span data-l="en" lang="en">At the goal, every companion in the crew gets a new scarf. One of them is still asleep.</span><span data-l="pt" lang="pt-PT">Ao atingir o objetivo, todos os companheiros do grupo ganham um cachecol novo. Um deles ainda está a dormir.</span></p>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="faq-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="faq-title"><span data-l="en" lang="en">Questions</span><span data-l="pt" lang="pt-PT">Perguntas</span></h2>
+    </div>
+    <div class="faq">
+      <div>
+        <h3><span data-l="en" lang="en">Is it free?</span><span data-l="pt" lang="pt-PT">É grátis?</span></h3>
+        <p><span data-l="en" lang="en">There will be a free trial. After that, the plan is a small monthly subscription of around €4. Nothing is decided yet, and this waitlist is part of deciding.</span><span data-l="pt" lang="pt-PT">Vai haver um período de experiência gratuito. Depois, a ideia é uma pequena subscrição mensal de cerca de 4 €. Nada está decidido, e esta lista de espera faz parte dessa decisão.</span></p>
+      </div>
+      <div>
+        <h3><span data-l="en" lang="en">Can I buy more energy?</span><span data-l="pt" lang="pt-PT">Posso comprar mais energia?</span></h3>
+        <p><span data-l="en" lang="en">No. Energy only comes from moving. That's the whole point.</span><span data-l="pt" lang="pt-PT">Não. A energia só vem do movimento. É essa a ideia.</span></p>
+      </div>
+      <div>
+        <h3><span data-l="en" lang="en">Which phones?</span><span data-l="pt" lang="pt-PT">Para que telemóveis?</span></h3>
+        <p><span data-l="en" lang="en">Android first, reading your steps from Health Connect. iPhone, with Apple Health, is planned after that.</span><span data-l="pt" lang="pt-PT">Primeiro Android, com os passos lidos do Health Connect. O iPhone, com a app Saúde, vem a seguir.</span></p>
+      </div>
+      <div>
+        <h3><span data-l="en" lang="en">What will it know about me?</span><span data-l="pt" lang="pt-PT">O que fica a saber sobre mim?</span></h3>
+        <p><span data-l="en" lang="en">Only your step counts and workouts, to charge your companion. Never your location. Your data is never sold, and you can delete it whenever you like.</span><span data-l="pt" lang="pt-PT">Só os teus passos e treinos, para carregar o companheiro. Nunca a tua localização. Os teus dados nunca são vendidos e podes apagá-los quando quiseres.</span></p>
+      </div>
+      <div>
+        <h3><span data-l="en" lang="en">When can I try it?</span><span data-l="pt" lang="pt-PT">Quando posso experimentar?</span></h3>
+        <p><span data-l="en" lang="en">There's no date yet. People on the waitlist hear first and can join the first test group.</span><span data-l="pt" lang="pt-PT">Ainda não há data. Quem está na lista de espera sabe primeiro e pode entrar no primeiro grupo de testes.</span></p>
+      </div>
+      <div>
+        <h3><span data-l="en" lang="en">Is it a real AI?</span><span data-l="pt" lang="pt-PT">É uma IA a sério?</span></h3>
+        <p><span data-l="en" lang="en">Yes. It runs on established AI models, so it can genuinely help: answering questions, planning, writing, explaining.</span><span data-l="pt" lang="pt-PT">Sim. Funciona com modelos de IA estabelecidos, por isso ajuda de verdade: responde, planeia, escreve, explica.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="privacy" aria-labelledby="privacy-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="privacy-title"><span data-l="en" lang="en">Your data on this waitlist</span><span data-l="pt" lang="pt-PT">Os teus dados nesta lista de espera</span></h2>
+    </div>
+    <div class="privacy">
+      <dl>
+        <div><dt><span data-l="en" lang="en">Who is responsible</span><span data-l="pt" lang="pt-PT">Responsável</span></dt><dd><span class="todo" data-fill="controller_name">[your name]</span>, <span data-l="en" lang="en">who runs Walk2AI. Contact:</span><span data-l="pt" lang="pt-PT">que gere o Walk2AI. Contacto:</span> <span class="todo" data-fill="contact_email">[your contact email]</span></dd></div>
+        <div><dt><span data-l="en" lang="en">What is collected</span><span data-l="pt" lang="pt-PT">O que é recolhido</span></dt><dd><span data-l="en" lang="en">Your email address, your answer to the price question if you give one, and the language you used.</span><span data-l="pt" lang="pt-PT">O teu email, a tua resposta à pergunta sobre o preço (se responderes) e o idioma que usaste.</span></dd></div>
+        <div><dt><span data-l="en" lang="en">Why</span><span data-l="pt" lang="pt-PT">Para quê</span></dt><dd><span data-l="en" lang="en">To tell you about Walk2AI and, now and then, ask what you think. The legal basis is your consent.</span><span data-l="pt" lang="pt-PT">Para te dar notícias do Walk2AI e, de vez em quando, perguntar a tua opinião. A base legal é o teu consentimento.</span></dd></div>
+      </dl>
+      <dl>
+        <div><dt><span data-l="en" lang="en">Where it is kept</span><span data-l="pt" lang="pt-PT">Onde fica guardado</span></dt><dd><span data-l="en" lang="en">With the website's host,</span><span data-l="pt" lang="pt-PT">No serviço que aloja o site,</span> <span class="todo" data-fill="host">[hosting provider]</span><span data-l="en" lang="en">, which stores it on Walk2AI's behalf. It is never sold or shared for marketing.</span><span data-l="pt" lang="pt-PT">, que os guarda em nome do Walk2AI. Nunca são vendidos nem partilhados para marketing.</span></dd></div>
+        <div><dt><span data-l="en" lang="en">How long</span><span data-l="pt" lang="pt-PT">Durante quanto tempo</span></dt><dd><span data-l="en" lang="en">Until Walk2AI launches or the project stops, and never more than 12 months. Then it is deleted.</span><span data-l="pt" lang="pt-PT">Até o Walk2AI ser lançado ou o projeto parar, e nunca mais de 12 meses. Depois é apagado.</span></dd></div>
+        <div><dt><span data-l="en" lang="en">Your rights</span><span data-l="pt" lang="pt-PT">Os teus direitos</span></dt><dd><span data-l="en" lang="en">Ask by email to see, correct or delete your data, or to withdraw your consent, at any time. You can also complain to the Portuguese data protection authority (CNPD).</span><span data-l="pt" lang="pt-PT">Podes pedir por email para ver, corrigir ou apagar os teus dados, ou retirar o consentimento, a qualquer momento. Podes também apresentar queixa à CNPD (Comissão Nacional de Proteção de Dados).</span></dd></div>
+      </dl>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span><span data-l="en" lang="en">Walk2AI is an independent project in development.</span><span data-l="pt" lang="pt-PT">O Walk2AI é um projeto independente em desenvolvimento.</span></span>
+    <a href="#privacy"><span data-l="en" lang="en">Privacy</span><span data-l="pt" lang="pt-PT">Privacidade</span></a>
+  </div>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Where sign-ups go. The live site's build sets window.WAITLIST_CONFIG; without it
+  // the page is a preview and sends nothing. Modes: "netlify" (Netlify Forms),
+  // "post" (any form service that accepts a POST: { mode, url }), "google-form"
+  // ({ mode, url, fields: { email, would_pay, lang } } with the form's entry ids).
+  var config = window.WAITLIST_CONFIG || { mode: "preview" };
+
+  var TEXT = {
+    en: {
+      sleepy: "Sleepy. Pip needs a walk.",
+      awake: "Awake and ready to help.",
+      bright: "Fully charged. Ask it anything.",
+      energy: "Energy",
+      sending: "Adding you…",
+      ok: "You're on the list. We'll email you when there's something to try.",
+      preview: "This is a preview, so nothing was sent. On the live site this adds you to the waitlist.",
+      badEmail: "Enter an email address, like name@example.com.",
+      noConsent: "Tick the box to agree to the emails, so we can add you.",
+      failed: "That didn't go through. Check your connection and try again.",
+      locale: "en-GB",
+      htmlLang: "en"
+    },
+    pt: {
+      sleepy: "Com sono. O Pip precisa de um passeio.",
+      awake: "Acordado e pronto para ajudar.",
+      bright: "Carregado. Pergunta-lhe o que quiseres.",
+      energy: "Energia",
+      sending: "A adicionar…",
+      ok: "Estás na lista. Enviamos-te um email quando houver algo para experimentar.",
+      preview: "Isto é uma pré-visualização, por isso nada foi enviado. No site real, isto junta-te à lista de espera.",
+      badEmail: "Escreve um endereço de email, por exemplo nome@exemplo.com.",
+      noConsent: "Marca a caixa para aceitar os emails, para te podermos adicionar.",
+      failed: "Não foi possível enviar. Verifica a ligação e tenta outra vez.",
+      locale: "pt-PT",
+      htmlLang: "pt-PT"
+    }
+  };
+
+  var site = document.querySelector(".site");
+  var lang = "en";
+
+  var steps = document.getElementById("steps");
+  var stepsOut = document.getElementById("steps-out");
+  var pip = document.getElementById("demo-pip");
+  var mood = document.getElementById("mood-text");
+  var fill = document.getElementById("energy-fill");
+  var meter = document.getElementById("energy-meter");
+  var energyVal = document.getElementById("energy-val");
+  var energyLabel = document.getElementById("energy-label");
+  var msgs = document.querySelectorAll("#talk-text .msgs");
+
+  function update() {
+    var t = TEXT[lang];
+    var n = Number(steps.value);
+    var energy = Math.min(100, Math.floor(n / 100)); // 100 steps = 1%; 10,000 = full
+    var state = energy < 20 ? "sleepy" : energy >= 80 ? "bright" : "awake";
+    var fmt = new Intl.NumberFormat(t.locale);
+    stepsOut.textContent = fmt.format(n);
+    energyVal.textContent = energy + "%";
+    fill.style.width = energy + "%";
+    meter.setAttribute("aria-valuenow", String(energy));
+    meter.setAttribute("aria-valuetext", energy + "%");
+    energyLabel.textContent = t.energy;
+    pip.setAttribute("class", "pip pip--" + state);
+    mood.textContent = t[state];
+    var count = fmt.format(Math.floor(energy / 2)); // a short message uses about 2%
+    for (var i = 0; i < msgs.length; i++) msgs[i].textContent = count;
+  }
+
+  function setLang(next) {
+    lang = next === "pt" ? "pt" : "en";
+    site.setAttribute("data-lang", lang);
+    document.documentElement.setAttribute("lang", TEXT[lang].htmlLang);
+    document.getElementById("lang-en").setAttribute("aria-pressed", String(lang === "en"));
+    document.getElementById("lang-pt").setAttribute("aria-pressed", String(lang === "pt"));
+    document.getElementById("f-lang").value = lang;
+    try { localStorage.setItem("walk2ai-lang", lang); } catch (e) { /* storage may be unavailable */ }
+    update();
+  }
+
+  var saved = null;
+  try { saved = localStorage.getItem("walk2ai-lang"); } catch (e) { saved = null; }
+  var browser = (navigator.language || "en").toLowerCase();
+  setLang(saved || (browser.indexOf("pt") === 0 ? "pt" : "en"));
+
+  document.getElementById("lang-en").addEventListener("click", function () { setLang("en"); });
+  document.getElementById("lang-pt").addEventListener("click", function () { setLang("pt"); });
+  steps.addEventListener("input", update);
+
+  // ---------------------------------------------------------------- sign-up
+  var form = document.getElementById("waitlist");
+  var email = document.getElementById("f-email");
+  var consent = document.getElementById("f-consent");
+  var status = document.getElementById("f-status");
+  var submit = document.getElementById("f-submit");
+
+  function say(kind, key) {
+    status.className = "status" + (kind ? " " + kind : "");
+    status.textContent = key ? TEXT[lang][key] : "";
+  }
+
+  function send(data) {
+    if (config.mode === "netlify") {
+      return fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(data).toString()
+      }).then(function (r) { if (!r.ok) throw new Error(String(r.status)); });
+    }
+    if (config.mode === "post" && config.url) {
+      return fetch(config.url, { method: "POST", headers: { Accept: "application/json" }, body: data })
+        .then(function (r) { if (!r.ok) throw new Error(String(r.status)); });
+    }
+    if (config.mode === "google-form" && config.url && config.fields) {
+      var body = new URLSearchParams();
+      Object.keys(config.fields).forEach(function (name) {
+        var value = data.get(name);
+        if (value) body.append(config.fields[name], value);
+      });
+      // Google Forms gives no readable answer to another site; a sent request is the best signal.
+      return fetch(config.url, { method: "POST", mode: "no-cors", body: body });
+    }
+    return Promise.resolve("preview");
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    if (!email.value || !email.checkValidity()) { say("err", "badEmail"); email.focus(); return; }
+    if (!consent.checked) { say("err", "noConsent"); consent.focus(); return; }
+    var data = new FormData(form);
+    if (data.get("company")) { say("ok", "ok"); form.reset(); return; } // a bot filled the hidden field
+    submit.disabled = true;
+    say("", "sending");
+    send(data).then(function (result) {
+      if (result === "preview") { say("ok", "preview"); return; }
+      say("ok", "ok");
+      form.reset();
+      document.getElementById("f-lang").value = lang;
+    }).catch(function () {
+      say("err", "failed");
+    }).then(function () {
+      submit.disabled = false;
+    });
+  });
+})();
+</script>

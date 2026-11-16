@@ -10,6 +10,23 @@ direction.** Research is written up and three directions for the dashboard are d
 (`docs/design/`). No Mobbin, no Figma, nothing spent (D-53). No frontend code exists or
 will be written before you have reviewed the designs.
 
+## Business concept (new, 2026-11-16)
+
+As a personal tool, Walk2AI only ever spends money: walking unlocks AI you pay for
+yourself. To explore turning it into a business, a new concept is drafted and ready to
+test before anything more is built:
+
+- **"Walk your AI"**: an AI companion that runs on your steps — energy from movement,
+  growth from consistency, crews of friends — paid for by a small subscription, with the
+  energy cap guaranteeing a margin on every subscriber. See
+  [docs/business/CONCEPT.md](docs/business/CONCEPT.md).
+- **A bilingual waitlist page** to test demand and willingness to pay, ready to host for
+  free: [landing/](landing/README.md). It needs your name and a contact email for its
+  privacy notice before it can go live.
+
+The frontend design work (Phase 4) is paused until the test says whether to continue
+with this concept.
+
 ## Phases
 
 | Phase | Status |
