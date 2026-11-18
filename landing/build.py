@@ -35,6 +35,8 @@ FONT_FACES = """<style>
 FAVICON = (
     "data:image/svg+xml,"
     "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E"
+    "%3Ccircle cx='38' cy='98' r='18' fill='%233C8C68'/%3E"
+    "%3Ccircle cx='162' cy='98' r='18' fill='%233C8C68'/%3E"
     "%3Crect x='42' y='58' width='116' height='120' rx='58' fill='%237DD3AE'/%3E"
     "%3Ccircle cx='100' cy='26' r='16' fill='%23FFC93C'/%3E"
     "%3Ccircle cx='80' cy='102' r='11' fill='%2313241B'/%3E"
@@ -119,7 +121,7 @@ def build(preview: bool) -> None:
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
         f'<link rel="icon" href="{FAVICON}">\n'
-        '<meta property="og:title" content="Wobo">\n'
+        '<meta property="og:title" content="Wanderoo">\n'
         '<meta property="og:description" content="An AI companion that runs on your steps.">\n'
         f"{page}\n</html>\n"
     )

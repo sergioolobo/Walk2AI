@@ -16,7 +16,7 @@ As a personal tool, Walk2AI only ever spends money: walking unlocks AI you pay f
 yourself. To explore turning it into a business, a new concept is drafted and ready to
 test before anything more is built:
 
-- **"Walk your AI"**: an AI companion that runs on your steps — energy from movement,
+- **Wanderoo** (name chosen 2026-11-18): an AI companion that runs on your steps — energy from movement,
   growth from consistency, crews of friends — paid for by a small subscription, with the
   energy cap guaranteeing a margin on every subscriber. See
   [docs/business/CONCEPT.md](docs/business/CONCEPT.md).

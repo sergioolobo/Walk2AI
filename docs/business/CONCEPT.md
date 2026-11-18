@@ -1,12 +1,15 @@
-# Walk2AI — Concept: "Walk your AI"
+# Wanderoo — Concept
 
-_Draft 1 · 16 November 2026 · a hypothesis to test, not a plan to execute_
+_Draft 2 · 18 November 2026 · a hypothesis to test, not a plan to execute_
 
 > **An AI companion that runs on your steps.** Like a dog, it needs walks. Unlike a dog,
 > it helps you with anything.
 
-"Walk2AI" is the working name. Check that it is free to use (trademarks, app-store
-names, domain) before publishing anything under it.
+**Wanderoo** is the product's name (chosen 18 November 2026). It comes from *wander*,
+and a wanderoo is also a small monkey, which gives the character its round ears and
+curly tail. Each person names their own Wanderoo. A first search found no app with the
+name; the trademark registers (WIPO, EUIPO, USPTO), domains and social handles still need
+checking before launch. "Walk2AI" stays as the codename of the code and the backend.
 
 ---
 
@@ -28,8 +31,8 @@ Two things learned along the way shape this concept:
 
 ## 2. The concept
 
-You get a personal AI companion — a small character with a name, a look and a
-personality. It is genuinely useful: it answers questions and helps you plan, write and
+You get a Wanderoo: a personal AI companion — a small character you name, with a look
+and a personality. It is genuinely useful: it answers questions and helps you plan, write and
 learn, like any AI assistant.
 
 | Mechanic | How it works |
@@ -114,6 +117,33 @@ The energy cap is what makes this safe: the heaviest possible user still leaves 
 Income tax is not included. (An earlier estimate in conversation left out VAT; these
 figures correct it.)
 
+### Which AI powers it
+
+**Default: the cheapest models of the established labs** (Claude Haiku 5.5 or GPT-6
+Luna, chosen by which plays the character better in testing), with **no price increase**.
+AI is only 10–20% of what a subscriber brings in, so a "free" model would save at most
+€0.30–0.60 per user per month, at the cost of:
+
+- free API tiers that are rate-limited, carry no service guarantee, and may restrict
+  commercial use or use the conversations;
+- noticeably weaker personality and help at the same speed — and the character is the
+  product;
+- building a safety layer ourselves, for an app people grow attached to;
+- less clarity about where EU users' data is processed.
+
+Built in from the start:
+
+1. **Smarter answers cost more energy, not more money.** A "think harder" message on a
+   larger model uses proportionally more energy, so every user's cost stays bounded and
+   walking remains the only way to earn it.
+2. **Open models are a lever, not the plan.** Hosted open models (Qwen, Llama) can be
+   added behind the existing gateway with one more adapter: as a fallback during a
+   provider outage, or to cut costs at scale. Licences vary per model (Llama's has
+   conditions; many Qwen models are Apache 2.0) and must be checked one by one.
+3. **Self-hosting pays only at scale.** A GPU server costs roughly €300–1,000 a month,
+   which equals the AI bill of about 1,000–3,000 active subscribers. Below that, paying
+   per token is cheaper and needs no maintenance.
+
 **Reality check.** Consumer subscription apps typically convert a few percent of people
 who try them into payers, and many subscribers cancel within months. 1,000 paying
 subscribers might need tens of thousands of downloads. This is a side business unless
@@ -192,14 +222,14 @@ Nothing more is built until this answers "yes".
    These thresholds are judgement calls for a small, informal test, not science.
 4. **Talk to 10 people who signed up.** Ask about their walking, their AI use, what they
    would want the companion to do, and what would make them stop using it.
-5. **Live with it yourself** for a month: the current Walk2AI with a companion
+5. **Live with it yourself** for a month: the current backend with a companion
    personality. Do you walk more?
 
 Then decide: build the Android beta, change the concept, or stop.
 
 ## 11. Open decisions
 
-1. The name (and checking it is free).
+1. ~~The name~~ — Wanderoo (trademark, domain and handle checks still to do).
 2. The price to test (€3.99 is a starting point).
 3. Whether crews are in the first version or come later.
 4. The companion's look: one character for everyone, or several to choose from.
