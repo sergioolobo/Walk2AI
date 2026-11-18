@@ -128,6 +128,7 @@ crews make it spread on their own.
 | Move-to-earn | Sweatcoin, StepBet | Large audiences; money is motivating | Money attracts cheating, and some fell apart when the rewards lost value |
 | AI companions | Character-style apps | Strong attachment | Mostly entertainment; no link to real life |
 | Pet-for-habits apps | Finch (a bird you raise by completing self-care goals) | Proves that a companion motivates daily habits, and that people subscribe for it | The companion is a mascot, not a useful AI; habits are self-reported, not measured |
+| AI pets from big tech | Meta's "Waddle World" (launched late October 2026: an AI pet, "not a chatbot", 18+) | Reach and budget; validates that AI pets are a category | Not tied to real movement; a large company can copy features quickly, so the walking link and crews must be the moat |
 | Fitness coaches | Apple, Google, Whoop | Data and ecosystems | Serious and data-heavy, not playful |
 
 The differentiator is the combination: a **useful** AI with **personality**, whose
