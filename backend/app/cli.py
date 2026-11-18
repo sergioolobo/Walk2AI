@@ -1,0 +1,97 @@
+"""Operational commands.
+
+python -m app.cli seed                 insert missing initial configuration
+python -m app.cli reconcile            verify balances against the ledger
+python -m app.cli refresh-rates        fetch the ECB's USD/EUR reference rate and apply it
+python -m app.cli expire-reservations  release holds past their expiry and flag the AI
+                                       requests they belonged to
+"""
+
+import argparse
+import asyncio
+import sys
+from collections.abc import Awaitable, Callable
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.core.clock import SystemClock
+from app.core.config import get_settings
+from app.core.db import build_engine, build_session_factory
+from app.seeds import seed_initial_configuration
+from app.services.ai.maintenance import mark_abandoned_requests
+from app.services.ai.reference_rates import EcbRateFetcher, refresh_usd_eur_rate
+from app.services.wallet import WalletService
+from app.services.wallet.maintenance import expire_stale_reservations
+
+Command = Callable[[async_sessionmaker[AsyncSession]], Awaitable[int]]
+
+
+async def _seed(session_factory: async_sessionmaker[AsyncSession]) -> int:
+    async with session_factory() as session, session.begin():
+        result = await seed_initial_configuration(session)
+    print(
+        f"seed: {result.reward_rules_created} reward rule(s), "
+        f"{result.workout_types_created} workout type(s), "
+        f"{result.exchange_rates_created} conversion rate(s), "
+        f"{result.models_created} AI model(s), {result.prices_created} price(s) created"
+        + (f"; {result.prices_verified} price(s) now verified" if result.prices_verified else "")
+    )
+    return 0
+
+
+async def _reconcile(session_factory: async_sessionmaker[AsyncSession]) -> int:
+    async with session_factory() as session:
+        report = await WalletService(session, SystemClock()).reconcile()
+    for item in report.discrepancies:
+        print(
+            f"MISMATCH wallet={item.wallet_id} user={item.user_id} "
+            f"{item.check}: expected {item.expected}, found {item.actual}"
+        )
+    status = "ok" if report.ok else f"{len(report.discrepancies)} discrepancy(ies)"
+    print(f"reconcile: {report.wallets_checked} wallet(s) checked, {status}")
+    return 0 if report.ok else 1
+
+
+async def _expire(session_factory: async_sessionmaker[AsyncSession]) -> int:
+    clock = SystemClock()
+    count = await expire_stale_reservations(session_factory, clock)
+    flagged = await mark_abandoned_requests(session_factory, clock)
+    print(f"expire-reservations: {count} released, {flagged} abandoned AI request(s) flagged")
+    return 0
+
+
+async def _refresh_rates(session_factory: async_sessionmaker[AsyncSession]) -> int:
+    fetcher = EcbRateFetcher()
+    try:
+        result = await refresh_usd_eur_rate(session_factory, SystemClock(), fetcher)
+    finally:
+        await fetcher.aclose()
+    print(f"refresh-rates: {result.outcome.value} - {result.detail}")
+    return 0 if result.ok else 1
+
+
+COMMANDS: dict[str, Command] = {
+    "seed": _seed,
+    "reconcile": _reconcile,
+    "expire-reservations": _expire,
+    "refresh-rates": _refresh_rates,
+}
+
+
+async def _run(command: Command) -> int:
+    engine = build_engine(get_settings())
+    try:
+        return await command(build_session_factory(engine))
+    finally:
+        await engine.dispose()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m app.cli", description="Walk2AI operations")
+    parser.add_argument("command", choices=sorted(COMMANDS))
+    args = parser.parse_args(argv)
+    return asyncio.run(_run(COMMANDS[args.command]))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,10 @@
+{
+  "_help": "Settings for the live waitlist site. Fill these in, then run: python landing/build.py (see landing/README.md).",
+  "mode": "netlify",
+  "controller_name": "",
+  "contact_email": "",
+  "host": "Netlify",
+  "post_url": "",
+  "google_form_url": "",
+  "google_form_fields": { "email": "", "would_pay": "", "lang": "" }
+}
